@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../email_verification_screen.dart';
 
 class SignupTab extends StatefulWidget {
-  const SignupTab({Key? key}) : super(key: key);
+  const SignupTab({super.key});
 
   @override
   State<SignupTab> createState() => _SignupTabState();
@@ -59,9 +60,8 @@ class _SignupTabState extends State<SignupTab> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your email';
                 }
-                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                    .hasMatch(value)) {
-                  return 'Please enter a valid email address';
+                if (!value.contains('@')) {
+                  return 'Please enter a valid email';
                 }
                 return null;
               },
@@ -79,22 +79,13 @@ class _SignupTabState extends State<SignupTab> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _passwordController,
-              obscureText: !_isPasswordVisible,
-              decoration: InputDecoration(
+              obscureText: true,
+              decoration: const InputDecoration(
                 hintText: 'Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _isPasswordVisible
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: Colors.grey,
-                  ),
-                  onPressed: _togglePasswordVisibility,
-                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter a password';
+                  return 'Please enter your password';
                 }
                 if (value.length < 6) {
                   return 'Password must be at least 6 characters';
@@ -140,7 +131,23 @@ class _SignupTabState extends State<SignupTab> {
 
             // Sign up button
             ElevatedButton(
-              onPressed: _isLoading ? null : null,
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      if (_formKey.currentState!.validate()) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmailVerificationScreen(
+                              email: _emailController.text,
+                              onVerificationComplete: (String verificationCode) {
+                                // Handle verification completion
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
               child: _isLoading
                   ? const SizedBox(
                       height: 20,
