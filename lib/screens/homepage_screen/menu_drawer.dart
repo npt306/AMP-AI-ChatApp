@@ -84,6 +84,28 @@ class MenuDrawer extends StatelessWidget {
               ),
             ),
 
+             const SizedBox(height: 20),
+
+            // Prompt Library Item
+            _buildMenuItem(
+              context,
+              index: 3,
+              title: 'Prompt Library',
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.library_books,
+                  color: Colors.black87,
+                  size: 24,
+                ),
+              ),
+            ),
+
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Divider(color: Colors.black12),

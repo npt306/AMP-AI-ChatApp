@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../profile_screen.dart';
 import 'menu_drawer.dart';
 import '../history_screen.dart';
+import '../prompt_library_screen/prompt_library_screen.dart';
 
 class HomepageScreen extends StatelessWidget {
   const HomepageScreen({super.key});
@@ -80,11 +81,17 @@ class HomepageScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       drawer: MenuDrawer(
-        onItemSelected: (index) {
+        onItemSelected: (index) { 
           if (index == 2) { // History item index
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const HistoryScreen()),
+            );
+          }
+          if (index == 3) { // Prompt Library item index
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PromptLibraryScreen()),
             );
           }
         },
