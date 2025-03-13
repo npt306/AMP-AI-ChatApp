@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'profile_screen.dart';
 class HomepageScreen extends StatelessWidget {
   const HomepageScreen({super.key});
 
@@ -111,15 +111,20 @@ class HomepageScreen extends StatelessWidget {
           // Profile avatar
           Container(
             margin: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.grey.shade200,
-              child: ClipOval(
-                child: Image.network(
-                  'https://cdn0.iconfinder.com/data/icons/basic-50/24/essential_basic_ui_user-512.png',
-                  width: 30,
-                  height: 30,
-                  fit: BoxFit.cover,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                );
+              },
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.grey.shade200,
+                child: Icon(
+                  Icons.person,
+                  size: 30,
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -290,7 +295,7 @@ class HomepageScreen extends StatelessWidget {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),
