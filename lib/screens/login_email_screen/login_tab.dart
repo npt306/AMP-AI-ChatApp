@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../reset_password_screen.dart';
 
 class LoginTab extends StatefulWidget {
   const LoginTab({super.key});
@@ -114,6 +115,14 @@ class _LoginTabState extends State<LoginTab> {
                   GestureDetector(
                     onTap: () {
                       // Handle forgot password
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ResetPasswordScreen(
+                          email: _emailController.text,
+                        ),
+                      ),
+                    );
                     },
                     child: const Text(
                       'Forgot password?',
