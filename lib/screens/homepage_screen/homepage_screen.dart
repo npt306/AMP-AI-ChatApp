@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'profile_screen.dart';
+import '../profile_screen.dart';
+import 'menu_drawer.dart';
+
 class HomepageScreen extends StatelessWidget {
   const HomepageScreen({super.key});
 
@@ -76,12 +78,21 @@ class HomepageScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      drawer: MenuDrawer(
+        onItemSelected: (index) {
+          // Handle menu item selection
+        },
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black),
-          onPressed: () {},
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
         ),
         actions: [
           // Upgrade button
@@ -90,7 +101,7 @@ class HomepageScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 123, 113, 168),
+                backgroundColor: const Color.fromARGB(255, 144, 138, 173),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
@@ -120,7 +131,7 @@ class HomepageScreen extends StatelessWidget {
               },
               child: CircleAvatar(
                 radius: 20,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: Colors.grey.shade100,
                 child: Icon(
                   Icons.person,
                   size: 30,
