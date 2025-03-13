@@ -1,5 +1,7 @@
+import 'common/custom_notification/custom_notification.dart';
 import 'package:flutter/material.dart';
 import 'new_password_screen.dart';
+import 'common/custom_notification/custom_notification_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -28,6 +30,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
+
+      CustomNotificationService.show(
+        context: context,
+        message: 'Password reset succeeded',
+        type: NotificationType.success,
+        onTap: () {
+          // Navigate 
+        },
+      );
 
       // Navigate to NewPasswordScreen
       Navigator.push(

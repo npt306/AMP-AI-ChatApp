@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'common/custom_notification/custom_notification_service.dart';
+import 'common/custom_notification/custom_notification.dart';
 
 class NewPasswordScreen extends StatefulWidget {
   final String email;
@@ -75,11 +77,14 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
       if (!mounted) return;
 
       // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
+
+      CustomNotificationService.show(
+        context: context,
+        message: 'Password updated succeeded',
+        type: NotificationType.success,
+        onTap: () {
+          // Navigate
+        },
       );
 
       // Navigate back to login
@@ -135,9 +140,10 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'New password | Monica',
-          style: TextStyle(color: Colors.white),
+          'New password',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
         child: Padding(
