@@ -32,7 +32,7 @@ class DeletePromptDialog extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  iconSize: 20,
+                  iconSize: 24,
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).pop(),
                   padding: EdgeInsets.zero,

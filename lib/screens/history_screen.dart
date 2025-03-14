@@ -101,7 +101,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.cleaning_services_outlined, color: Colors.black87),
+            icon: const Icon(Icons.cleaning_services_outlined,
+                color: Colors.black87),
             onPressed: () => _showDeleteConfirmationDialog(context),
           ),
         ],
@@ -128,8 +129,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       },
                       decoration: InputDecoration(
                         hintText: 'Search',
+                        hintStyle: TextStyle(color: Colors.grey[600]),
                         prefixIcon: const Icon(Icons.search),
                         border: InputBorder.none,
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide.none,
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide.none,
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
                         isDense: true,
@@ -187,18 +197,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       children: [
         ListTile(
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           title: Text(
             item.title,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 4),
               Row(children: [
                 Text(
                   item.message,
@@ -217,7 +226,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   },
                 ),
               ]),
-              const SizedBox(height: 8),
               Row(
                 children: [
                   CircleAvatar(

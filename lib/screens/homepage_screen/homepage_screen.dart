@@ -114,7 +114,7 @@ class HomepageScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 144, 138, 173),
+                backgroundColor: const Color.fromARGB(255, 201, 195, 235),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
