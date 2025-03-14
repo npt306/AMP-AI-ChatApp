@@ -5,8 +5,16 @@ import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
 import '../upgrade_screen.dart';
 import '../email_composer_screen/email_composer_screen.dart';
-class HomepageScreen extends StatelessWidget {
+
+class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
+
+  @override
+  State<HomepageScreen> createState() => _HomepageScreenState();
+}
+
+class _HomepageScreenState extends State<HomepageScreen> {
+  bool _showMediaIcons = false;
 
   final List<Map<String, dynamic>> aiModes = const [
     {
@@ -342,17 +350,66 @@ class HomepageScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
                           borderRadius: BorderRadius.circular(25),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.add_circle_outline,
-                                color: Colors.grey[600]),
-                            const SizedBox(width: 8),
-                            const Expanded(
+                            SizedBox(
+                              width: _showMediaIcons ? 96 : 48,
+                              child: Stack(
+                                alignment: Alignment.centerLeft,
+                                children: [
+                                  // Add button that toggles visibility
+                                  AnimatedOpacity(
+                                    opacity: _showMediaIcons ? 0.0 : 1.0,
+                                    duration: const Duration(milliseconds: 200),
+                                    child: IconButton(
+                                      icon: Icon(Icons.add_circle_outline,
+                                          color: Colors.grey[600]),
+                                      onPressed: () {
+                                        setState(() {
+                                          _showMediaIcons = true;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  // Sliding media icons
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    width: _showMediaIcons ? 96 : 0,
+                                    curve: Curves.easeInOut,
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (_showMediaIcons) ...[
+                                            IconButton(
+                                              icon: Icon(Icons.camera_alt,
+                                                  color: Colors.grey[600]),
+                                              onPressed: () {
+                                                // Handle camera
+                                              },
+                                            ),
+                                            IconButton(
+                                              icon: Icon(Icons.photo_library,
+                                                  color: Colors.grey[600]),
+                                              onPressed: () {
+                                                // Handle gallery
+                                              },
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
                               child: TextField(
                                 decoration: InputDecoration(
                                   hintText: 'Message',
@@ -361,11 +418,19 @@ class HomepageScreen extends StatelessWidget {
                                   focusedBorder: InputBorder.none,
                                   hintStyle: TextStyle(color: Colors.grey),
                                 ),
+                                onTap: () {
+                                  if (_showMediaIcons) {
+                                    setState(() {
+                                      _showMediaIcons = false;
+                                    });
+                                  }
+                                },
                               ),
                             ),
-                            Icon(Icons.mic, color: Colors.grey[600]),
-                            const SizedBox(width: 8),
-                            Icon(Icons.phone, color: Colors.grey[600]),
+                            IconButton(
+                              icon: Icon(Icons.send, color: Colors.grey[600]),
+                              onPressed: () {},
+                            ),
                           ],
                         ),
                       ),
