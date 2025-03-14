@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 class CreatePromptDialog extends StatefulWidget {
   final Function(String name, String promptText) onSave;
+  final bool isUpdateMode;
+  final String? initialName;
+  final String? initialPrompt;
 
   const CreatePromptDialog({
     super.key,
     required this.onSave,
+    this.isUpdateMode = false,
+    this.initialName,
+    this.initialPrompt,
   });
 
   @override
@@ -16,6 +22,15 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _promptController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isUpdateMode) {
+      _nameController.text = widget.initialName ?? '';
+      _promptController.text = widget.initialPrompt ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -46,9 +61,9 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'New Prompt',
-                  style: TextStyle(
+                Text(
+                  widget.isUpdateMode ? 'Update Prompt' : 'New Prompt',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -259,9 +274,9 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Create',
-                    style: TextStyle(
+                  child: Text(
+                    widget.isUpdateMode ? 'Save' : 'Create',
+                    style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
