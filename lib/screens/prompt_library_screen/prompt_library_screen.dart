@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'prompt.dart';
 import 'prompt_card.dart';
 import 'create_prompt_dialog.dart';
+import 'delete_prompt_dialog.dart';
 
 class PromptLibraryScreen extends StatefulWidget {
   const PromptLibraryScreen({super.key});
@@ -322,35 +323,51 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                             isPublicPrompt: _isPublicTab,
                             onToggleFavorite: () => _toggleFavorite(prompt.id),
                             onTap: () {},
-                            onEdit: _isPublicTab ? null : () {
-                              showDialog(
-                                context: context,
-                                builder: (context) => CreatePromptDialog(
-                                  isUpdateMode: true,
-                                  initialName: prompt.title,
-                                  initialPrompt: prompt.content,
-                                  onSave: (name, promptText) {
-                                    setState(() {
-                                      final promptIndex = samplePrompts.indexWhere((p) => p.id == prompt.id);
-                                      if (promptIndex != -1) {
-                                        samplePrompts[promptIndex] = Prompt(
-                                          id: prompt.id,
-                                          title: name,
-                                          description: prompt.description,
-                                          categories: prompt.categories,
-                                          isPublic: prompt.isPublic,
-                                          content: promptText,
-                                          usageCount: prompt.usageCount,
-                                          isFavorite: prompt.isFavorite,
-                                        );
-                                      }
-                                    });
-                                    _filterPrompts();
+                            onEdit: _isPublicTab
+                                ? null
+                                : () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => CreatePromptDialog(
+                                        isUpdateMode: true,
+                                        initialName: prompt.title,
+                                        initialPrompt: prompt.content,
+                                        onSave: (name, promptText) {
+                                          setState(() {
+                                            final promptIndex =
+                                                samplePrompts.indexWhere(
+                                                    (p) => p.id == prompt.id);
+                                            if (promptIndex != -1) {
+                                              samplePrompts[promptIndex] =
+                                                  Prompt(
+                                                id: prompt.id,
+                                                title: name,
+                                                description: prompt.description,
+                                                categories: prompt.categories,
+                                                isPublic: prompt.isPublic,
+                                                content: promptText,
+                                                usageCount: prompt.usageCount,
+                                                isFavorite: prompt.isFavorite,
+                                              );
+                                            }
+                                          });
+                                          _filterPrompts();
+                                        },
+                                      ),
+                                    );
                                   },
-                                ),
-                              );
-                            },
-                            onDelete: _isPublicTab ? null : () {},
+                            onDelete: _isPublicTab
+                                ? null
+                                : () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => DeletePromptDialog(
+                                        onDelete: () {
+                                          
+                                        },
+                                      ),
+                                    );
+                                  },
                           );
                         },
                       ),
