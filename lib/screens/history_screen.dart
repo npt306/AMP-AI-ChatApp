@@ -195,70 +195,75 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-          title: Text(
-            item.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+        Container(
+          color: Colors.white,
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+            title: Text(
+              item.title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Text(
-                  item.message,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 2),
+                Row(children: [
+                  Expanded(
+                    child: Text(
+                      item.message,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.more_horiz),
-                  onPressed: () {
-                    // Show options menu
-                  },
-                ),
-              ]),
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: const Color(0xFF8A70FF),
-                    child: ClipOval(
-                      child: Image.network(
-                        'https://via.placeholder.com/24',
-                        width: 24,
-                        height: 24,
-                        fit: BoxFit.cover,
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz),
+                    onPressed: () {
+                      // Show options menu
+                    },
+                  ),
+                ]),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFF8A70FF),
+                      child: ClipOval(
+                        child: Image.network(
+                          'https://via.placeholder.com/24',
+                          width: 24,
+                          height: 24,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Monica',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Monica',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _getTimeAgo(item.timestamp),
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                    const Spacer(),
+                    Text(
+                      _getTimeAgo(item.timestamp),
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         Divider(color: Colors.grey[200]),

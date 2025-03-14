@@ -3,6 +3,7 @@ import '../profile_screen.dart';
 import 'menu_drawer.dart';
 import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
+import '../upgrade_screen.dart';
 
 class HomepageScreen extends StatelessWidget {
   const HomepageScreen({super.key});
@@ -112,7 +113,12 @@ class HomepageScreen extends StatelessWidget {
           Container(
             margin: const EdgeInsets.symmetric(vertical: 8.0),
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UpgradeScreen()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 201, 195, 235),
                 foregroundColor: Colors.white,
