@@ -71,40 +71,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _showMoreOptions() async {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.notifications),
-            title: const Text('Notification Settings'),
-            onTap: () {
-              Navigator.pop(context);
-              // Navigate to notification settings
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip),
-            title: const Text('Privacy Settings'),
-            onTap: () {
-              Navigator.pop(context);
-              // Navigate to privacy settings
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.help),
-            title: const Text('Help & Support'),
-            onTap: () {
-              Navigator.pop(context);
-              // Navigate to help & support
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _confirmLogout() async {
     final shouldLogout = await showDialog<bool>(
@@ -218,17 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.copy,
                         color: Colors.grey[400],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoTile(
-                      'More',
-                      '',
-                      onTap: _showMoreOptions,
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey[400],
-                      ),
-                    ),
+                    ),                    
                   ],
                 ),
               ),

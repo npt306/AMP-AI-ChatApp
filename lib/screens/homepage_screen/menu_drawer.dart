@@ -84,7 +84,7 @@ class MenuDrawer extends StatelessWidget {
               ),
             ),
 
-             const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Prompt Library Item
             _buildMenuItem(
@@ -100,6 +100,28 @@ class MenuDrawer extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.library_books,
+                  color: Colors.black87,
+                  size: 24,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Email Composer Item
+            _buildMenuItem(
+              context,
+              index: 4,
+              title: 'Email Composer',
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.email_rounded,
                   color: Colors.black87,
                   size: 24,
                 ),

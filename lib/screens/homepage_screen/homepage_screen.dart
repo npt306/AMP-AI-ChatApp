@@ -4,7 +4,7 @@ import 'menu_drawer.dart';
 import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
 import '../upgrade_screen.dart';
-
+import '../email_composer_screen/email_composer_screen.dart';
 class HomepageScreen extends StatelessWidget {
   const HomepageScreen({super.key});
 
@@ -93,6 +93,12 @@ class HomepageScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const PromptLibraryScreen()),
+            );
+          }
+          if (index == 4) { // Email Composer item index
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const EmailComposeScreen()),
             );
           }
         },
