@@ -5,6 +5,8 @@ import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
 import '../upgrade_screen.dart';
 import '../email_composer_screen/email_composer_screen.dart';
+import '../prompt_library_screen/prompt.dart';
+import 'prompt_bottom_sheet.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -15,7 +17,11 @@ class HomepageScreen extends StatefulWidget {
 
 class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
-
+  int _selectedModelIndex = 0;
+  final int _remainingTokens = 100; // Add remaining tokens count
+  final bool _isPro = true; // Add pro status check
+  final TextEditingController _messageController = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
   final List<Map<String, dynamic>> aiModes = const [
     {
       'image': 'assets/images/deepseek.png',
@@ -71,7 +77,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
                         ),
                       ),
                       title: Text(mode['label']),
+                      trailing: _selectedModelIndex == index
+                          ? Icon(Icons.check, color: Colors.green)
+                          : null,
                       onTap: () {
+                        setState(() {
+                          _selectedModelIndex = index;
+                        });
                         Navigator.pop(context);
                       },
                     );
@@ -85,28 +97,118 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
+  void _showPromptsDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: samplePrompts.length,
+              itemBuilder: (context, index) {
+                final prompt = samplePrompts[index];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  title: Text(
+                    prompt.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    prompt.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (context) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: PromptBottomSheet(
+                          prompt: prompt.content,
+                          title: prompt.title,
+                          description: prompt.description,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(() {
+      final text = _messageController.text;
+      if (text == '/') {
+        _showPromptsDialog(context);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _messageFocusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       drawer: MenuDrawer(
-        onItemSelected: (index) { 
-          if (index == 2) { // History item index
+        onItemSelected: (index) {
+          if (index == 2) {
+            // History item index
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const HistoryScreen()),
             );
           }
-          if (index == 3) { // Prompt Library item index
+          if (index == 3) {
+            // Prompt Library item index
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const PromptLibraryScreen()),
+              MaterialPageRoute(
+                  builder: (context) => const PromptLibraryScreen()),
             );
           }
-          if (index == 4) { // Email Composer item index
+          if (index == 4) {
+            // Email Composer item index
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const EmailComposeScreen()),
+              MaterialPageRoute(
+                  builder: (context) => const EmailComposeScreen()),
             );
           }
         },
@@ -130,7 +232,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const UpgradeScreen()),
+                  MaterialPageRoute(
+                      builder: (context) => const UpgradeScreen()),
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -143,11 +246,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 minimumSize: const Size(0, 36),
               ),
               icon: const Icon(Icons.auto_awesome, size: 16),
-              label: const Text(
-                'Upgrade',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold),
+              label: Text(
+                _isPro ? 'Pro' : 'Upgrade',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -159,7 +261,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  MaterialPageRoute(
+                      builder: (context) => const ProfileScreen()),
                 );
               },
               child: CircleAvatar(
@@ -266,82 +369,103 @@ class _HomepageScreenState extends State<HomepageScreen> {
             ),
             child: Column(
               children: [
-                // Horizontal scrolling buttons
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      // All Model button
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: GestureDetector(
-                          onTap: () => _showAllModelsDialog(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.model_training,
-                                    size: 16, color: Colors.grey[800]),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'All Model',
-                                  style: TextStyle(
-                                    color: Colors.grey[800],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                // Model selection button
+                Row(
+                  children: [
+                    // Token counter
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bolt,
+                            size: 20,
+                            color: const Color.fromARGB(255, 47, 0, 255),
+                          ),
+                          const SizedBox(width: 1),
+                          Text(
+                            _remainingTokens.toString(),
+                            style: TextStyle(
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                    // Model selector
+                    GestureDetector(
+                      onTap: () => _showAllModelsDialog(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: Colors.grey[100],
+                              child: ClipOval(
+                                child: Image.asset(
+                                  aiModes[_selectedModelIndex]['image'],
+                                  width: 24,
+                                  height: 24,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              aiModes[_selectedModelIndex]['label'],
+                              style: TextStyle(
+                                color: Colors.grey[800],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.grey[800],
+                              size: 20,
+                            ),
+                          ],
                         ),
                       ),
-                      // AI Models
-                      ...aiModes.map((mode) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: Colors.grey[100],
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      mode['image'],
-                                      width: 24,
-                                      height: 24,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  mode['label'],
-                                  style: TextStyle(
-                                    color: Colors.grey[800],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                    ),
+                    const Spacer(), // Add spacer to push history icon to the right
+                    // History icon button
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const HistoryScreen()),
+                          );
+                        },
+                        child: Icon(
+                          Icons.history,
+                          size: 24,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -411,6 +535,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             ),
                             Expanded(
                               child: TextField(
+                                controller: _messageController,
+                                focusNode: _messageFocusNode,
                                 decoration: InputDecoration(
                                   hintText: 'Message',
                                   border: InputBorder.none,
