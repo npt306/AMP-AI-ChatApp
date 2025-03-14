@@ -35,6 +35,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
       'image': 'assets/images/claude.png',
       'label': 'Claude 3',
     },
+    {
+      'image': 'assets/images/llama.png',
+      'label': 'Llama 3',
+    },
   ];
 
   void _showAllModelsDialog(BuildContext context) {
@@ -45,52 +49,125 @@ class _HomepageScreenState extends State<HomepageScreen> {
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'All AI Models',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: aiModes.length,
-                  itemBuilder: (context, index) {
-                    final mode = aiModes[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.grey[100],
-                        child: ClipOval(
-                          child: Image.asset(
-                            mode['image'],
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header với title và close button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Select AI Model',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      title: Text(mode['label']),
-                      trailing: _selectedModelIndex == index
-                          ? Icon(Icons.check, color: Colors.green)
-                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Choose the AI model that best suits your needs',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Model list
+                ...aiModes.map((mode) {
+                  final isSelected = aiModes[_selectedModelIndex] == mode;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFF8A70FF) : Colors.grey.shade200,
+                        width: 2,
+                      ),
+                      color: isSelected ? const Color(0xFFF5F3FF) : Colors.white,
+                    ),
+                    child: InkWell(
                       onTap: () {
                         setState(() {
-                          _selectedModelIndex = index;
+                          _selectedModelIndex = aiModes.indexOf(mode);
                         });
                         Navigator.pop(context);
                       },
-                    );
-                  },
-                ),
-              ),
-            ],
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            // Model icon
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              child: Image.asset(
+                                mode['image'],
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Model info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    mode['label'],
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _getModelDescription(mode['label']),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Selected indicator
+                            if (isSelected)
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF8A70FF),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
           ),
         );
       },
@@ -348,11 +425,77 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       color: Colors.black87,
                     ),
                   ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
           ),
 
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(children: [
+                  const Text(
+                    "Don't known what to say? Use a prompt!",
+                    style: TextStyle(
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const PromptLibraryScreen()),
+                      );
+                    },
+                    child: Text(
+                      "View all",
+                      style: TextStyle(
+                        color: Color.fromARGB(255, 54, 43, 211),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+              ...samplePrompts.take(3).map((prompt) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    children: [
+                      _buildPromptItem(
+                        prompt.title,
+                        Icons.arrow_forward,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (context) => Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    MediaQuery.of(context).viewInsets.bottom,
+                              ),
+                              child: PromptBottomSheet(
+                                prompt: prompt.content,
+                                title: prompt.title,
+                                description: prompt.description,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      if (prompt != samplePrompts.take(3).last)
+                        const SizedBox(height: 0),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+
+          const SizedBox(height: 16),
           // Bottom section
           Container(
             padding: const EdgeInsets.all(16),
@@ -607,5 +750,48 @@ class _HomepageScreenState extends State<HomepageScreen> {
       ),
       onPressed: () {},
     );
+  }
+
+  Widget _buildPromptItem(String title, IconData icon, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        width: double.infinity,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+              ),
+            ),
+            Icon(
+              icon,
+              size: 20,
+              color: Colors.black54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Thêm helper method để lấy mô tả cho từng model
+  String _getModelDescription(String modelName) {
+    switch (modelName) {
+      case 'DeepSeek V3':
+        return 'Best for code generation and technical tasks';
+      case 'GPT-4':
+        return 'Most capable model for general tasks';
+      case 'Claude 3':
+        return 'Excellent for analysis and long-form content';
+      case 'Llama 3':
+        return 'Best for code generation and technical tasks';
+      default:
+        return '';
+    }
   }
 }

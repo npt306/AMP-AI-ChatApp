@@ -69,7 +69,7 @@ class MyApp extends StatelessWidget {
       //     ),
       //   ),
       // ),
-      home: const MyBotScreen(),
+      home:const HomepageScreen(),
     );
   }
 }
