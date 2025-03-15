@@ -282,7 +282,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
             // Knowledge Base item index
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const KnowledgeManagerScreen()),
+              MaterialPageRoute(
+                  builder: (context) => const KnowledgeManagerScreen()),
             );
           }
           if (index == 2) {
