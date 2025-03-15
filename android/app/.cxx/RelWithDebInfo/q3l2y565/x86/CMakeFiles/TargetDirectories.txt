@@ -1,0 +1,2 @@
+D:/SUBJECT/NAM_4/HK2/MBNC/amp_ai_chatapp/android/app/.cxx/RelWithDebInfo/q3l2y565/x86/CMakeFiles/edit_cache.dir
+D:/SUBJECT/NAM_4/HK2/MBNC/amp_ai_chatapp/android/app/.cxx/RelWithDebInfo/q3l2y565/x86/CMakeFiles/rebuild_cache.dir

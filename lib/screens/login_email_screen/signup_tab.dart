@@ -52,9 +52,42 @@ class _SignupTabState extends State<SignupTab> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _emailController,
+              obscureText: true,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Email address',
+                filled: true,
+                fillColor: const Color(0xFFF6F7F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -80,8 +113,40 @@ class _SignupTabState extends State<SignupTab> {
             TextFormField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Password',
+                filled: true,
+                fillColor: const Color(0xFFF6F7F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -106,8 +171,40 @@ class _SignupTabState extends State<SignupTab> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _nicknameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'What should we call you',
+                filled: true,
+                fillColor: const Color(0xFFF6F7F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF8A70FF),
+                    width: 1,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -140,7 +237,8 @@ class _SignupTabState extends State<SignupTab> {
                           MaterialPageRoute(
                             builder: (context) => EmailVerificationScreen(
                               email: _emailController.text,
-                              onVerificationComplete: (String verificationCode) {
+                              onVerificationComplete:
+                                  (String verificationCode) {
                                 // Handle verification completion
                               },
                             ),
@@ -148,6 +246,15 @@ class _SignupTabState extends State<SignupTab> {
                         );
                       }
                     },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8A70FF),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                elevation: 0,
+                minimumSize: Size(MediaQuery.of(context).size.width, 0),
+              ),
               child: _isLoading
                   ? const SizedBox(
                       height: 20,
@@ -157,7 +264,13 @@ class _SignupTabState extends State<SignupTab> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text('Sign Up'),
+                  : const Text(
+                      'Sign Up',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
             ),
           ],
         ),

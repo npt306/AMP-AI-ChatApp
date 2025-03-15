@@ -7,6 +7,9 @@ import '../upgrade_screen.dart';
 import '../email_composer_screen/email_composer_screen.dart';
 import '../prompt_library_screen/prompt.dart';
 import 'prompt_bottom_sheet.dart';
+import '../my_bot_screen.dart';
+import '../chat_available_bot_screen.dart';
+import '../knowledge_manager_screen.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -81,7 +84,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Model list
                 ...aiModes.map((mode) {
                   final isSelected = aiModes[_selectedModelIndex] == mode;
@@ -90,10 +93,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFF8A70FF) : Colors.grey.shade200,
+                        color: isSelected
+                            ? const Color(0xFF8A70FF)
+                            : Colors.grey.shade200,
                         width: 2,
                       ),
-                      color: isSelected ? const Color(0xFFF5F3FF) : Colors.white,
+                      color:
+                          isSelected ? const Color(0xFFF5F3FF) : Colors.white,
                     ),
                     child: InkWell(
                       onTap: () {
@@ -265,6 +271,20 @@ class _HomepageScreenState extends State<HomepageScreen> {
       backgroundColor: Colors.white,
       drawer: MenuDrawer(
         onItemSelected: (index) {
+          if (index == 0) {
+            // My Bots item index
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const MyBotScreen()),
+            );
+          }
+          if (index == 1) {
+            // Knowledge Base item index
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const KnowledgeManagerScreen()),
+            );
+          }
           if (index == 2) {
             // History item index
             Navigator.push(
@@ -698,7 +718,14 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             ),
                             IconButton(
                               icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () {},
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ChatAvailableBotScreen()),
+                                );
+                              },
                             ),
                           ],
                         ),

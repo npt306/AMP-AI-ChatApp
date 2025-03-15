@@ -46,7 +46,7 @@ class MenuDrawer extends StatelessWidget {
             _buildMenuItem(
               context,
               index: 1,
-              title: 'Explore',
+              title: 'Knowledge Base',
               leading: Container(
                 width: 50,
                 height: 50,
@@ -55,7 +55,7 @@ class MenuDrawer extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
-                  Icons.grid_view,
+                  Icons.dataset_outlined,
                   color: Colors.black87,
                   size: 24,
                 ),

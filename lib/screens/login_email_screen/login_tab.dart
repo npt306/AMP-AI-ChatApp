@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../reset_password_screen.dart';
+import '../homepage_screen/homepage_screen.dart';
 
 class LoginTab extends StatefulWidget {
   const LoginTab({super.key});
@@ -65,8 +66,40 @@ class _LoginTabState extends State<LoginTab> {
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Email address',
+                  filled: true,
+                  fillColor: const Color(0xFFF6F7F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF8A70FF),
+                      width: 1,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF8A70FF),
+                      width: 1,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -81,7 +114,22 @@ class _LoginTabState extends State<LoginTab> {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _handleNextStep,
-                child: const Text('Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8A70FF),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  elevation: 0,
+                  minimumSize: Size(MediaQuery.of(context).size.width, 0),
+                ),
+                child: const Text(
+                  'Next',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ] else ...[
               // Password step
@@ -115,14 +163,14 @@ class _LoginTabState extends State<LoginTab> {
                   GestureDetector(
                     onTap: () {
                       // Handle forgot password
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ResetPasswordScreen(
-                          email: _emailController.text,
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ResetPasswordScreen(
+                            email: _emailController.text,
+                          ),
                         ),
-                      ),
-                    );
+                      );
                     },
                     child: const Text(
                       'Forgot password?',
@@ -142,14 +190,47 @@ class _LoginTabState extends State<LoginTab> {
                 obscureText: !_isPasswordVisible,
                 decoration: InputDecoration(
                   hintText: 'Password',
+                  filled: true,
+                  fillColor: const Color(0xFFF6F7F9),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _isPasswordVisible
                           ? Icons.visibility_off_outlined
                           : Icons.visibility_outlined,
                       color: Colors.grey,
+                      size: 20,
                     ),
                     onPressed: _togglePasswordVisibility,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF8A70FF),
+                      width: 1,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF8A70FF),
+                      width: 1,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
                 ),
                 validator: (value) {
@@ -180,10 +261,25 @@ class _LoginTabState extends State<LoginTab> {
                 onPressed: _isLoading
                     ? null
                     : () {
-                        if (_formKey.currentState!.validate()) {
-                          // Handle login
-                        }
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HomepageScreen(),
+                          ),
+                        );
+                        // if (_formKey.currentState!.validate()) {
+                        //   // Handle login
+                        // }
                       },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8A70FF),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  elevation: 0,
+                  minimumSize: Size(MediaQuery.of(context).size.width, 0),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
@@ -193,7 +289,7 @@ class _LoginTabState extends State<LoginTab> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Text('Log In'),
+                    : const Text('Log In', style: TextStyle(color: Colors.white),),
               ),
             ],
           ],
