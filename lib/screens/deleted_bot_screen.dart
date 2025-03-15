@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
 import 'manage_bot_screen.dart';
 
-class DeletedBotScreen extends StatelessWidget {
+class DeletedBotScreen extends StatefulWidget {
   const DeletedBotScreen({super.key});
+
+  @override
+  State<DeletedBotScreen> createState() => _DeletedBotScreenState();
+}
+
+class _DeletedBotScreenState extends State<DeletedBotScreen> {
+  bool _showMediaIcons = false;
+  final TextEditingController _messageController = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _messageFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +74,6 @@ class DeletedBotScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black, width: 0.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -452,7 +467,7 @@ class DeletedBotScreen extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Color(0xFFFFF3CD), // Màu nâu vàng
+              color: Color(0xFFFFF3CD),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -477,6 +492,8 @@ class DeletedBotScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // Message input row
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -485,7 +502,7 @@ class DeletedBotScreen extends StatelessWidget {
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.1),
                   spreadRadius: 1,
-                  blurRadius: 3,
+                  blurRadius: 10,
                   offset: const Offset(0, -1),
                 ),
               ],
@@ -493,35 +510,80 @@ class DeletedBotScreen extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors
+                          .grey[200], // Màu xám nhạt hơn để thể hiện disabled
+                      borderRadius: BorderRadius.circular(25),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.purple[400]!, Colors.purple[600]!],
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: _showMediaIcons ? 96 : 48,
+                          child: Stack(
+                            alignment: Alignment.centerLeft,
+                            children: [
+                              // Add button that toggles visibility (disabled)
+                              AnimatedOpacity(
+                                opacity: _showMediaIcons ? 0.0 : 1.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: IconButton(
+                                  icon: Icon(Icons.add_circle_outline,
+                                      color:
+                                          Colors.grey[400]), // Màu xám nhạt hơn
+                                  onPressed: null, // Disabled
+                                ),
+                              ),
+                              // Sliding media icons (disabled)
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                width: _showMediaIcons ? 96 : 0,
+                                curve: Curves.easeInOut,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_showMediaIcons) ...[
+                                        IconButton(
+                                          icon: Icon(Icons.camera_alt,
+                                              color: Colors.grey[400]),
+                                          onPressed: null, // Disabled
+                                        ),
+                                        IconButton(
+                                          icon: Icon(Icons.photo_library,
+                                              color: Colors.grey[400]),
+                                          onPressed: null, // Disabled
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            focusNode: _messageFocusNode,
+                            enabled: false, // Disabled
+                            decoration: InputDecoration(
+                              hintText: 'Bot is no longer available',
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.send, color: Colors.grey[400]),
+                          onPressed: null, // Disabled
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: IconButton(
-                    onPressed: () {},
-                    icon: Icon(Icons.send, color: Colors.grey[600]),
                   ),
                 ),
               ],
