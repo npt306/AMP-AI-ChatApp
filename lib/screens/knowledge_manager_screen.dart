@@ -31,7 +31,7 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
   final List<KnowledgeDataset> _datasets = [];
   final TextEditingController _searchController = TextEditingController();
   List<KnowledgeDataset> _filteredDatasets = [];
-  bool _isSearching = false;
+  final bool _isSearching = false;
 
   @override
   void initState() {
@@ -71,14 +71,13 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
       if (query.isEmpty) {
         _filteredDatasets = List.from(_datasets);
       } else {
-        _filteredDatasets =
-            _datasets
-                .where(
-                  (dataset) =>
-                      dataset.name.toLowerCase().contains(query) ||
-                      dataset.source.toLowerCase().contains(query),
-                )
-                .toList();
+        _filteredDatasets = _datasets
+            .where(
+              (dataset) =>
+                  dataset.name.toLowerCase().contains(query) ||
+                  dataset.source.toLowerCase().contains(query),
+            )
+            .toList();
       }
     });
   }
@@ -188,11 +187,10 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
   void _showAddDatasetDialog(String source) {
     showDialog(
       context: context,
-      builder:
-          (context) => AddDatasetDialog(
-            onAdd: _addDataset,
-            source: source, // Pass the source to the dialog
-          ),
+      builder: (context) => AddDatasetDialog(
+        onAdd: _addDataset,
+        source: source, // Pass the source to the dialog
+      ),
     );
   }
 
@@ -203,15 +201,14 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder:
-          (context) => ImportOptionsBottomSheet(
-            onImportSelected: (source) {
-              Navigator.pop(context);
-              // Here you would handle the import based on the source
-              // For now, we'll just show a dialog to add a dataset
-              _showAddDatasetDialog(source);
-            },
-          ),
+      builder: (context) => ImportOptionsBottomSheet(
+        onImportSelected: (source) {
+          Navigator.pop(context);
+          // Here you would handle the import based on the source
+          // For now, we'll just show a dialog to add a dataset
+          _showAddDatasetDialog(source);
+        },
+      ),
     );
   }
 
@@ -394,26 +391,25 @@ class DatasetCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   backgroundColor: Colors.grey[100],
-                  child:
-                      dataset.source.toLowerCase() == 'google drive'
+                  child: dataset.source.toLowerCase() == 'google drive'
+                      ? Image.asset(
+                          'assets/images/ggdrive.jpg',
+                          width: 24,
+                          height: 24,
+                        )
+                      : dataset.source.toLowerCase() == 'slack'
                           ? Image.asset(
-                            'assets/images/ggdrive.jpg',
-                            width: 24,
-                            height: 24,
-                          )
-                          : dataset.source.toLowerCase() == 'slack'
-                          ? Image.asset(
-                            'assets/images/slack.png',
-                            width: 24,
-                            height: 24,
-                          )
+                              'assets/images/slack.png',
+                              width: 24,
+                              height: 24,
+                            )
                           : dataset.source.toLowerCase() == 'confluence'
-                          ? Image.asset(
-                            'assets/images/confluence.png',
-                            width: 24,
-                            height: 24,
-                          )
-                          : Icon(_getSourceIcon(), color: Colors.blue),
+                              ? Image.asset(
+                                  'assets/images/confluence.png',
+                                  width: 24,
+                                  height: 24,
+                                )
+                              : Icon(_getSourceIcon(), color: Colors.blue),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -422,7 +418,9 @@ class DatasetCard extends StatelessWidget {
                     children: [
                       Text(
                         dataset.name,
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -431,10 +429,10 @@ class DatasetCard extends StatelessWidget {
                       Text(
                         'Source: ${dataset.source}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
-                        ),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.7),
+                            ),
                       ),
                     ],
                   ),
@@ -444,26 +442,25 @@ class DatasetCard extends StatelessWidget {
                   onPressed: () {
                     showDialog(
                       context: context,
-                      builder:
-                          (context) => AlertDialog(
-                            title: const Text('Delete Dataset'),
-                            content: Text(
-                              'Are you sure you want to delete "${dataset.name}"? This action cannot be undone.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('CANCEL'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  onDelete();
-                                },
-                                child: const Text('DELETE'),
-                              ),
-                            ],
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Dataset'),
+                        content: Text(
+                          'Are you sure you want to delete "${dataset.name}"? This action cannot be undone.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('CANCEL'),
                           ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              onDelete();
+                            },
+                            child: const Text('DELETE'),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -476,18 +473,18 @@ class DatasetCard extends StatelessWidget {
                 Text(
                   'Added: ${dateFormat.format(dataset.dateAdded)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.6),
-                  ),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
+                      ),
                 ),
                 Text(
                   'Size: ${dataset.size}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.6),
-                  ),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
+                      ),
                 ),
               ],
             ),
@@ -657,10 +654,9 @@ class ImportOptionsBottomSheet extends StatelessWidget {
             CircleAvatar(
               backgroundColor: color.withOpacity(0.2),
               // Change this part to handle both IconData and String (image path)
-              child:
-                  iconOrAsset is IconData
-                      ? Icon(iconOrAsset, color: color)
-                      : Image.asset(iconOrAsset, width: 30, height: 30),
+              child: iconOrAsset is IconData
+                  ? Icon(iconOrAsset, color: color)
+                  : Image.asset(iconOrAsset, width: 30, height: 30),
             ),
             const SizedBox(width: 16),
             Expanded(

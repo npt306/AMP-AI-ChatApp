@@ -15,7 +15,7 @@ class _SignupTabState extends State<SignupTab> {
   final _nicknameController = TextEditingController();
 
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _errorMessage;
 
   @override

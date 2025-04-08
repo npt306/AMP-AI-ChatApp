@@ -171,7 +171,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -512,7 +512,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
 

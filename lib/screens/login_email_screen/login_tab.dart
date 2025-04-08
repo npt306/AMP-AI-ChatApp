@@ -15,7 +15,7 @@ class _LoginTabState extends State<LoginTab> {
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _errorMessage;
   bool _showPasswordField = false;
 
@@ -289,7 +289,10 @@ class _LoginTabState extends State<LoginTab> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Text('Log In', style: TextStyle(color: Colors.white),),
+                    : const Text(
+                        'Log In',
+                        style: TextStyle(color: Colors.white),
+                      ),
               ),
             ],
           ],

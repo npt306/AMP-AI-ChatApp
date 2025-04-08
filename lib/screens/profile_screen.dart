@@ -10,9 +10,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _name = "clone";
-  String _email = "kokoclone03@gmail.com";
-  String _userId = "bc56733484ac4c31aa6f29800aafe168";
-  
+  final String _email = "kokoclone03@gmail.com";
+  final String _userId = "bc56733484ac4c31aa6f29800aafe168";
+
   Future<void> _changeAvatar() async {
     // Implement image picker functionality
     // For demo purposes, we'll just show a dialog
@@ -70,7 +70,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
 
   Future<void> _confirmLogout() async {
     final shouldLogout = await showDialog<bool>(
@@ -184,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.copy,
                         color: Colors.grey[400],
                       ),
-                    ),                    
+                    ),
                   ],
                 ),
               ),

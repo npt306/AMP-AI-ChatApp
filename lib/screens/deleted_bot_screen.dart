@@ -9,7 +9,7 @@ class DeletedBotScreen extends StatefulWidget {
 }
 
 class _DeletedBotScreenState extends State<DeletedBotScreen> {
-  bool _showMediaIcons = false;
+  final bool _showMediaIcons = false;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
 

@@ -157,7 +157,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

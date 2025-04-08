@@ -158,7 +158,7 @@ class _ChatCustomBotScreenState extends State<ChatCustomBotScreen> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
