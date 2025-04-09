@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../services/auth_service.dart';
+import '../../services/secure_storage_service.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -9,9 +12,33 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _name = "clone";
-  final String _email = "kokoclone03@gmail.com";
-  final String _userId = "bc56733484ac4c31aa6f29800aafe168";
+  String _name = "User";
+  String _email = "";
+  String _userId = "";
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final authData = await SecureStorageService.getAuthData();
+      final email = authData['email'] ?? "";
+      setState(() {
+        _email = email;
+        _userId = authData['user_id'] ?? "";
+        _name = email.split('@')[0];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _changeAvatar() async {
     // Implement image picker functionality
@@ -94,7 +121,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (shouldLogout ?? false) {
-      // Implement logout logic
+      try {
+        final authData = await SecureStorageService.getAuthData();
+        final accessToken = authData['access_token'];
+        final refreshToken = authData['refresh_token'];
+
+        if (accessToken != null && refreshToken != null) {
+          await AuthService.logout(accessToken, refreshToken);
+        }
+        
+        await SecureStorageService.clearAuthData();
+        
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Logout failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -158,7 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildInfoTile(
                       'Name',
                       _name,
-                      onTap: _changeName,
+                      // onTap: _changeName,
                       trailing: Icon(
                         Icons.chevron_right,
                         color: Colors.grey[400],

@@ -1,0 +1,2 @@
+D:/SUBJECT/NAM-4/HK2/MBNC/clone/amp_ai_chatapp/android/app/.cxx/Debug/334y4a3e/armeabi-v7a/CMakeFiles/edit_cache.dir
+D:/SUBJECT/NAM-4/HK2/MBNC/clone/amp_ai_chatapp/android/app/.cxx/Debug/334y4a3e/armeabi-v7a/CMakeFiles/rebuild_cache.dir

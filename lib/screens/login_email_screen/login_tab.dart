@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../reset_password_screen.dart';
 import '../homepage_screen/homepage_screen.dart';
+import '../../services/auth_service.dart';
+import '../../services/secure_storage_service.dart';
 
 class LoginTab extends StatefulWidget {
   const LoginTab({super.key});
@@ -15,7 +17,7 @@ class _LoginTabState extends State<LoginTab> {
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
-  final bool _isLoading = false;
+  bool _isLoading = false;
   String? _errorMessage;
   bool _showPasswordField = false;
 
@@ -38,6 +40,49 @@ class _LoginTabState extends State<LoginTab> {
       setState(() {
         _showPasswordField = true;
       });
+    }
+  }
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await AuthService.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      // Save auth data to secure storage
+      await SecureStorageService.saveAuthData(
+        accessToken: response['access_token'],
+        refreshToken: response['refresh_token'],
+        userId: response['user_id'],
+        email: _emailController.text,
+      );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HomepageScreen(),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -258,19 +303,7 @@ class _LoginTabState extends State<LoginTab> {
 
               // Login button
               ElevatedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HomepageScreen(),
-                          ),
-                        );
-                        // if (_formKey.currentState!.validate()) {
-                        //   // Handle login
-                        // }
-                      },
+                onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF8A70FF),
                   padding: const EdgeInsets.symmetric(vertical: 16),
