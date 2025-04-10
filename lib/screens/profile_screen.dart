@@ -127,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final refreshToken = authData['refresh_token'];
 
         if (accessToken != null && refreshToken != null) {
-          await AuthService.logout(accessToken, refreshToken);
+          await AuthService.logout();
         }
         
         await SecureStorageService.clearAuthData();

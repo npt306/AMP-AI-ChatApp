@@ -27,158 +27,196 @@ class _HomepageScreenState extends State<HomepageScreen> {
   final FocusNode _messageFocusNode = FocusNode();
   final List<Map<String, dynamic>> aiModes = const [
     {
-      'image': 'assets/images/deepseek.png',
-      'label': 'DeepSeek V3',
-    },
-    {
-      'image': 'assets/images/gpt.webp',
-      'label': 'GPT-4',
+      'image': 'assets/images/claude.png',
+      'label': 'Claude 3 Haiku',
+      'value': 'claude-3-haiku-20240307',
     },
     {
       'image': 'assets/images/claude.png',
-      'label': 'Claude 3',
+      'label': 'Claude 3.5 Sonnet',
+      'value': 'claude-3-5-sonnet-20240620',
     },
     {
-      'image': 'assets/images/llama.png',
-      'label': 'Llama 3',
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Flash',
+      'value': 'gemini-1.5-flash-latest',
+    },
+    {
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Pro',
+      'value': 'gemini-1.5-pro-latest',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o',
+      'value': 'gpt-4o',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o Mini',
+      'value': 'gpt-4o-mini',
     },
   ];
 
-  void _showAllModelsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header với title và close button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+void _showAllModelsDialog(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (context) {
+      return Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
                   children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                     const Text(
                       'Select AI Model',
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, size: 22),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
+              ),
+              // Subtitle and description
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
                   'Choose the AI model that best suits your needs',
-                  style: TextStyle(
-                    color: Colors.grey,
+                  style: const TextStyle(
+                    color: Colors.black54,
                     fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                // Model list
-                ...aiModes.map((mode) {
-                  final isSelected = aiModes[_selectedModelIndex] == mode;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF8A70FF)
-                            : Colors.grey.shade200,
-                        width: 2,
+              ),
+              const SizedBox(height: 24),
+              
+              // Model list
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: aiModes.map((mode) {
+                    final isSelected = aiModes[_selectedModelIndex] == mode;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF8A70FF)
+                              : Colors.grey[200]!,
+                          width: 1.5,
+                        ),
+                        color: isSelected ? const Color(0xFFF5F3FF) : Colors.white,
                       ),
-                      color:
-                          isSelected ? const Color(0xFFF5F3FF) : Colors.white,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedModelIndex = aiModes.indexOf(mode);
-                        });
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            // Model icon
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(8),
-                              child: Image.asset(
-                                mode['image'],
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            // Model info
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    mode['label'],
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _getModelDescription(mode['label']),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Selected indicator
-                            if (isSelected)
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedModelIndex = aiModes.indexOf(mode);
+                          });
+                          Navigator.pop(context);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              // Model icon
                               Container(
-                                width: 24,
-                                height: 24,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF8A70FF),
-                                  shape: BoxShape.circle,
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 16,
+                                padding: const EdgeInsets.all(6),
+                                child: Image.asset(
+                                  mode['image'],
+                                  fit: BoxFit.contain,
                                 ),
                               ),
-                          ],
+                              const SizedBox(width: 12),
+                              // Model info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      mode['label'],
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _getModelDescription(mode['label']),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Selected indicator
+                              if (isSelected)
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF8A70FF),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
-              ],
-            ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   void _showPromptsDialog(BuildContext context) {
     showModalBottomSheet(
@@ -810,14 +848,18 @@ class _HomepageScreenState extends State<HomepageScreen> {
   // Thêm helper method để lấy mô tả cho từng model
   String _getModelDescription(String modelName) {
     switch (modelName) {
-      case 'DeepSeek V3':
-        return 'Best for code generation and technical tasks';
-      case 'GPT-4':
+      case 'Claude 3 Haiku':
+        return 'Fast and efficient model for quick responses';
+      case 'Claude 3.5 Sonnet':
+        return 'Advanced model for complex tasks and analysis';
+      case 'Gemini 1.5 Flash':
+        return 'Quick and efficient model for everyday tasks';
+      case 'Gemini 1.5 Pro':
+        return 'Powerful model for professional use';
+      case 'GPT-4o':
         return 'Most capable model for general tasks';
-      case 'Claude 3':
-        return 'Excellent for analysis and long-form content';
-      case 'Llama 3':
-        return 'Best for code generation and technical tasks';
+      case 'GPT-4o Mini':
+        return 'Lightweight version for faster responses';
       default:
         return '';
     }

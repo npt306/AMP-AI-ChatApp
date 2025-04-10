@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'prompt.dart';
+import '../../models/prompt.dart';
 
 class PromptCard extends StatelessWidget {
   final Prompt prompt;
@@ -45,7 +45,7 @@ class PromptCard extends StatelessWidget {
                   if (isPublicPrompt) ...[
                     const SizedBox(height: 4),
                     Text(
-                      prompt.description,
+                      prompt.description ?? '',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF64748B),
@@ -104,7 +104,6 @@ class PromptCard extends StatelessWidget {
           ),
       ];
     }
-    
   }
 }
 
