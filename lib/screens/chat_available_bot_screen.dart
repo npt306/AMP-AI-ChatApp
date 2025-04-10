@@ -36,6 +36,16 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     },
   ];
 
+  final List<String> _aiResponses = [
+    "I'm here to help you!",
+    "What can I do for you today?",
+    "Feel free to ask me anything.",
+    "I'm ready to assist you.",
+    "How can I make your day better?",
+  ];
+
+  List<Map<String, String>> _chatMessages = [];
+
   void _showAllModelsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -248,6 +258,27 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     );
   }
 
+  void _sendMessage() {
+    if (_messageController.text.trim().isNotEmpty) {
+      setState(() {
+        // Add the user's message to the chat
+        _chatMessages.add({
+          'sender': 'user',
+          'message': _messageController.text.trim(),
+        });
+
+        // Add a dynamic AI response to the chat
+        final response = _aiResponses[
+            DateTime.now().millisecondsSinceEpoch % _aiResponses.length];
+        _chatMessages.add({
+          'sender': 'ai',
+          'message': response,
+        });
+      });
+      _messageController.clear();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -409,379 +440,35 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
+            child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: [
-                // Assistant message
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              itemCount: _chatMessages.length,
+              itemBuilder: (context, index) {
+                final chat = _chatMessages[index];
+                return Row(
+                  mainAxisAlignment: chat['sender'] == 'user'
+                      ? MainAxisAlignment.end
+                      : MainAxisAlignment.start,
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Hello! How can I help you today?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // User message
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
+                      width: 250,
                       padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.grey[100],
+                        color: chat['sender'] == 'user'
+                            ? Colors.blue[100]
+                            : Colors.grey[100],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        'Hi! Can you help me with coding?',
-                        style: TextStyle(fontSize: 14, color: Colors.black87),
+                      child: Text(
+                        chat['message']!,
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black87),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                // Assistant message
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.purple[400]!, Colors.purple[600]!],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Of course! I\'d be happy to help you with coding. What kind of programming help do you need? I can assist with various programming languages, frameworks, and development concepts.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // User message
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'I want to learn Flutter. Where should I start?',
-                        style: TextStyle(fontSize: 14, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Assistant message with learning Flutter
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.purple[400]!, Colors.purple[600]!],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Great choice! Here\'s a structured approach to learn Flutter:\n\n1. Start with Dart basics (variables, functions, classes)\n2. Learn Flutter fundamentals (widgets, state management)\n3. Build simple apps (counter, todo list)\n4. Study UI/UX principles\n5. Explore advanced topics (navigation, databases)\n\nWould you like me to explain any of these topics in detail?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Preview buttons container
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'How are you feeling today?',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Do you have any questions about Flutter?',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Code a simple Flutter app.',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
 
@@ -986,13 +673,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             ),
                             IconButton(
                               icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () {
-                                // Handle send message
-                                if (_messageController.text.trim().isNotEmpty) {
-                                  // Add your send message logic here
-                                  _messageController.clear();
-                                }
-                              },
+                              onPressed: _sendMessage,
                             ),
                           ],
                         ),
