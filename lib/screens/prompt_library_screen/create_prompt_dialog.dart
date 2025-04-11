@@ -293,7 +293,8 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
                             color: Colors.grey,
                           ),
                         ),
-                        icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF8C9AAD)),
+                        icon: const Icon(Icons.keyboard_arrow_down,
+                            color: Color(0xFF8C9AAD)),
                         borderRadius: BorderRadius.circular(12),
                         padding: const EdgeInsets.only(right: 12),
                         onChanged: (Category? newValue) {
@@ -323,33 +324,33 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
 
                 // Visibility toggle
                 Row(
-                    children: [
-                      const Text(
-                        'Make public',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
+                  children: [
+                    const Text(
+                      'Make public',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
                       ),
-                      const Spacer(),
-                      Transform.scale(
-                        scale: 0.8, // Thu nhỏ switch một chút để cân đối hơn
-                        child: Switch(
-                          value: _isPublic,
-                          onChanged: (value) {
-                            setState(() {
-                              _isPublic = value;
-                            });
-                          },
-                          activeColor: Colors.white,
-                          activeTrackColor: const Color(0xFF4285F4),
-                          inactiveThumbColor: Colors.white,
-                          inactiveTrackColor: const Color(0xFFCFD8DC),
-                        ),
+                    ),
+                    const Spacer(),
+                    Transform.scale(
+                      scale: 0.8, // Thu nhỏ switch một chút để cân đối hơn
+                      child: Switch(
+                        value: _isPublic,
+                        onChanged: (value) {
+                          setState(() {
+                            _isPublic = value;
+                          });
+                        },
+                        activeColor: Colors.white,
+                        activeTrackColor: const Color(0xFF4285F4),
+                        inactiveThumbColor: Colors.white,
+                        inactiveTrackColor: const Color(0xFFCFD8DC),
                       ),
-                    ],
-                  ),
-                
+                    ),
+                  ],
+                ),
+
                 const SizedBox(height: 10),
 
                 // Prompt field

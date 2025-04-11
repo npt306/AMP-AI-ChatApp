@@ -5,11 +5,12 @@ import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
 import '../upgrade_screen.dart';
 import '../email_composer_screen/email_composer_screen.dart';
-import '../prompt_library_screen/prompt.dart';
 import 'prompt_bottom_sheet.dart';
 import '../my_bot_screen.dart';
 import '../chat_available_bot_screen.dart';
 import '../knowledge_manager_screen.dart';
+import '../../services/prompt_service.dart';
+import '../../models/prompt.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -58,166 +59,214 @@ class _HomepageScreenState extends State<HomepageScreen> {
     },
   ];
 
-void _showAllModelsDialog(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) {
-      return Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
+  // Add this property to store fetched prompts
+  List<Prompt> _prompts = [];
+  bool _isLoadingPrompts = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(() {
+      final text = _messageController.text;
+      if (text == '/') {
+        _showPromptsDialog(context);
+      }
+    });
+
+    // Fetch prompts when the screen initializes
+    _fetchPrompts();
+  }
+
+  // Add this method to fetch prompts from API
+  Future<void> _fetchPrompts() async {
+    setState(() {
+      _isLoadingPrompts = true;
+    });
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      setState(() {
+        _prompts = promptResponse.items;
+        _isLoadingPrompts = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPrompts = false;
+      });
+      // You might want to add error handling here
+      print('Error fetching prompts: $e');
+    }
+  }
+
+  void _showAllModelsDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
           ),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Text(
-                      'Select AI Model',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 20),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 22),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              // Subtitle and description
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Choose the AI model that best suits your needs',
-                  style: const TextStyle(
-                    color: Colors.black54,
-                    fontSize: 14,
+                      const Text(
+                        'Select AI Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Model list
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: aiModes.map((mode) {
-                    final isSelected = aiModes[_selectedModelIndex] == mode;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                // Subtitle and description
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Choose the AI model that best suits your needs',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Model list
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: aiModes.map((mode) {
+                      final isSelected = aiModes[_selectedModelIndex] == mode;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF8A70FF)
+                                : Colors.grey[200]!,
+                            width: 1.5,
+                          ),
                           color: isSelected
-                              ? const Color(0xFF8A70FF)
-                              : Colors.grey[200]!,
-                          width: 1.5,
+                              ? const Color(0xFFF5F3FF)
+                              : Colors.white,
                         ),
-                        color: isSelected ? const Color(0xFFF5F3FF) : Colors.white,
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _selectedModelIndex = aiModes.indexOf(mode);
-                          });
-                          Navigator.pop(context);
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              // Model icon
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.all(6),
-                                child: Image.asset(
-                                  mode['image'],
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Model info
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      mode['label'],
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _getModelDescription(mode['label']),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Selected indicator
-                              if (isSelected)
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedModelIndex = aiModes.indexOf(mode);
+                            });
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Model icon
                                 Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF8A70FF),
-                                    shape: BoxShape.circle,
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 14,
+                                  padding: const EdgeInsets.all(6),
+                                  child: Image.asset(
+                                    mode['image'],
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
-                            ],
+                                const SizedBox(width: 12),
+                                // Model info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        mode['label'],
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _getModelDescription(mode['label']),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Selected indicator
+                                if (isSelected)
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF8A70FF),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
+  // Update this method to use prompts from API
   void _showPromptsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -238,62 +287,54 @@ void _showAllModelsDialog(BuildContext context) {
           ),
           child: Material(
             color: Colors.transparent,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: samplePrompts.length,
-              itemBuilder: (context, index) {
-                final prompt = samplePrompts[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  title: Text(
-                    prompt.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Text(
-                    prompt.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
+            child: _isLoadingPrompts
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _prompts.length,
+                    itemBuilder: (context, index) {
+                      final prompt = _prompts[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        child: PromptBottomSheet(
-                          prompt: prompt.content,
-                          title: prompt.title,
-                          description: prompt.description,
+                        title: Text(
+                          prompt.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                        subtitle: Text(
+                          prompt.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (context) => Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    MediaQuery.of(context).viewInsets.bottom,
+                              ),
+                              child: PromptBottomSheet(
+                                prompt: prompt.content,
+                                title: prompt.title,
+                                description: prompt.description ?? '',
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
         ),
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messageController.addListener(() {
-      final text = _messageController.text;
-      if (text == '/') {
-        _showPromptsDialog(context);
-      }
-    });
   }
 
   @override
@@ -519,38 +560,47 @@ void _showAllModelsDialog(BuildContext context) {
                   ),
                 ]),
               ),
-              ...samplePrompts.take(3).map((prompt) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    children: [
-                      _buildPromptItem(
-                        prompt.title,
-                        Icons.arrow_forward,
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            builder: (context) => Padding(
-                              padding: EdgeInsets.only(
-                                bottom:
-                                    MediaQuery.of(context).viewInsets.bottom,
+              _isLoadingPrompts
+                  ? const Center(
+                      child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ))
+                  : Column(
+                      children: _prompts.take(3).map((prompt) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Column(
+                            children: [
+                              _buildPromptItem(
+                                prompt.title,
+                                Icons.arrow_forward,
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    builder: (context) => Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: MediaQuery.of(context)
+                                            .viewInsets
+                                            .bottom,
+                                      ),
+                                      child: PromptBottomSheet(
+                                        prompt: prompt.content,
+                                        title: prompt.title,
+                                        description: prompt.description ?? '',
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                              child: PromptBottomSheet(
-                                prompt: prompt.content,
-                                title: prompt.title,
-                                description: prompt.description,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (prompt != samplePrompts.take(3).last)
-                        const SizedBox(height: 0),
-                    ],
-                  ),
-                );
-              }),
+                              if (prompt != _prompts.take(3).toList().last)
+                                const SizedBox(height: 0),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
             ],
           ),
 
