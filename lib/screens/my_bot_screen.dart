@@ -198,7 +198,8 @@ class _MyBotScreenState extends State<MyBotScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => selectedButton == 'Availabled'
-                ? const ChatAvailableBotScreen()
+                // ? const ChatAvailableBotScreen()
+                ? const ChatCustomBotScreen()
                 : const ChatCustomBotScreen(),
           ),
         );

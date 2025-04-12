@@ -11,6 +11,7 @@ import '../chat_available_bot_screen.dart';
 import '../knowledge_manager_screen.dart';
 import '../../services/prompt_service.dart';
 import '../../models/prompt.dart';
+import '../../services/token_service.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -22,7 +23,7 @@ class HomepageScreen extends StatefulWidget {
 class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
-  final int _remainingTokens = 100; // Add remaining tokens count
+  int _remainingTokens = 0; // Initialize with 0 instead of hardcoded value
   final bool _isPro = true; // Add pro status check
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
@@ -75,6 +76,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
     // Fetch prompts when the screen initializes
     _fetchPrompts();
+
+    // Fetch token usage
+    _fetchTokenUsage();
   }
 
   // Add this method to fetch prompts from API
@@ -100,6 +104,19 @@ class _HomepageScreenState extends State<HomepageScreen> {
       });
       // You might want to add error handling here
       print('Error fetching prompts: $e');
+    }
+  }
+
+  // Add this method to fetch token usage
+  Future<void> _fetchTokenUsage() async {
+    try {
+      final usage = await TokenService.getTokenUsage();
+      setState(() {
+        _remainingTokens = usage.availableTokens;
+      });
+    } catch (e) {
+      print('Error fetching token usage: $e');
+      // Keep the default value if there's an error
     }
   }
 
@@ -324,6 +341,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
                                 prompt: prompt.content,
                                 title: prompt.title,
                                 description: prompt.description ?? '',
+                                selectedModelIndex: _selectedModelIndex,
+                                remainingTokens: _remainingTokens,
+                                isInChatScreen: false,
                               ),
                             ),
                           );
@@ -335,6 +355,22 @@ class _HomepageScreenState extends State<HomepageScreen> {
         ),
       ),
     );
+  }
+
+  void _navigateToChatScreen(String message) {
+    if (message.trim().isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatAvailableBotScreen(
+            initialMessage: message.trim(),
+            selectedModelIndex: _selectedModelIndex,
+            remainingTokens: _remainingTokens,
+          ),
+        ),
+      );
+      _messageController.clear();
+    }
   }
 
   @override
@@ -377,7 +413,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const PromptLibraryScreen()),
+                  builder: (context) => PromptLibraryScreen(
+                        selectedModelIndex: _selectedModelIndex,
+                        remainingTokens: _remainingTokens,
+                      )),
             );
           }
           if (index == 4) {
@@ -548,7 +587,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const PromptLibraryScreen()),
+                            builder: (context) => PromptLibraryScreen(
+                                  selectedModelIndex: _selectedModelIndex,
+                                  remainingTokens: _remainingTokens,
+                                )),
                       );
                     },
                     child: Text(
@@ -589,6 +631,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
                                         prompt: prompt.content,
                                         title: prompt.title,
                                         description: prompt.description ?? '',
+                                        selectedModelIndex: _selectedModelIndex,
+                                        remainingTokens: _remainingTokens,
+                                        isInChatScreen: false,
                                       ),
                                     ),
                                   );
@@ -807,14 +852,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             ),
                             IconButton(
                               icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ChatAvailableBotScreen()),
-                                );
-                              },
+                              onPressed: () => _navigateToChatScreen(
+                                  _messageController.text),
                             ),
                           ],
                         ),
@@ -854,17 +893,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBottomNavItem(IconData icon, bool isSelected) {
-    return IconButton(
-      icon: Icon(
-        icon,
-        color: isSelected ? const Color(0xFF8A70FF) : Colors.grey[600],
-        size: 28,
-      ),
-      onPressed: () {},
     );
   }
 

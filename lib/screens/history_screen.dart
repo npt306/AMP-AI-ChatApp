@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../services/ai_chat_service.dart';
+import '../models/conversation_response.dart';
+import 'chat_available_bot_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -10,15 +14,19 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  List<HistoryItem> _historyItems = [];
-  bool _isLoading = false;
+  List<ConversationItem> _historyItems = [];
+  List<ConversationItem> _filteredItems = [];
+  bool _isLoading = true;
   bool _isSearching = false;
+  String? _nextCursor;
+  bool _hasMore = false;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
     _scrollController.addListener(_onScroll);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
@@ -30,50 +38,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _loadInitialData() async {
     setState(() {
-      _historyItems = [
-        HistoryItem(
-          title: 'greeting',
-          message: 'I am doing well, thank you for asking!',
-          timestamp: DateTime.now(),
-        ),
-        HistoryItem(
-          title: 'greeting',
-          message: 'Hello! How can I help you today?',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
-        ),
-        HistoryItem(
-          title: 'greeting',
-          message: 'Hi there! How can I help you today?',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 6)),
-        ),
-        HistoryItem(
-          title: 'superman introduction',
-          message: 'Hello Superman! It\'s great to meet you!',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 6)),
-        ),
-        HistoryItem(
-          title: 'helicopter inquiry',
-          message: 'Hi there! How can I help you today?',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 8)),
-        ),
-      ];
+      _isLoading = true;
     });
+
+    try {
+      final response = await AiChatService.getConversations();
+
+      setState(() {
+        _historyItems = response.items;
+        _filteredItems = List.from(_historyItems);
+        _nextCursor = response.cursor;
+        _hasMore = response.hasMore;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading initial data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadMoreData() async {
-    if (_isLoading) return;
+    if (_isLoading || !_hasMore || _isSearching) return;
 
     setState(() {
       _isLoading = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response =
+          await AiChatService.getConversations(cursor: _nextCursor);
 
-    setState(() {
-      _isLoading = false;
-      // Add more items here
-    });
+      setState(() {
+        _historyItems.addAll(response.items);
+        _filteredItems = List.from(_historyItems);
+        _nextCursor = response.cursor;
+        _hasMore = response.hasMore;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading more data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _onScroll() {
@@ -83,8 +92,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  void _navigateToChatScreen(ConversationItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatAvailableBotScreen(
+          initialMessage: "Tiếp tục cuộc trò chuyện: ${item.title}",
+          selectedModelIndex: 0, // Sử dụng model mặc định
+          remainingTokens: 100, // Giá trị mặc định
+        ),
+      ),
+    );
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _isSearching = query.isNotEmpty;
+      if (_isSearching) {
+        _filteredItems = _historyItems
+            .where((item) => item.title.toLowerCase().contains(query))
+            .toList();
+      } else {
+        _filteredItems = List.from(_historyItems);
+      }
+    });
+  }
+
+  String _formatTimestamp(int timestamp) {
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    return DateFormat('yyyy-MM-dd HH:mm:ss').format(date);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final displayItems = _isSearching ? _filteredItems : _historyItems;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -99,13 +142,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.cleaning_services_outlined,
-                color: Colors.black87),
-            onPressed: () => _showDeleteConfirmationDialog(context),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -122,13 +158,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _isSearching = value.isNotEmpty;
-                        });
-                      },
                       decoration: InputDecoration(
-                        hintText: 'Search',
+                        hintText: 'Search by title',
                         hintStyle: TextStyle(color: Colors.grey[600]),
                         prefixIcon: const Icon(Icons.search),
                         border: InputBorder.none,
@@ -166,32 +197,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
           // History list
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _historyItems.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _historyItems.length) {
-                  return _isLoading
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: CircularProgressIndicator(),
+            child: _isLoading && displayItems.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : displayItems.isEmpty
+                    ? Center(
+                        child: Text(
+                          _isSearching
+                              ? 'No results found'
+                              : 'No history found',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
                           ),
-                        )
-                      : const SizedBox();
-                }
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: displayItems.length +
+                            (_hasMore && !_isSearching ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == displayItems.length) {
+                            return _isLoading
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
+                                : const SizedBox();
+                          }
 
-                final item = _historyItems[index];
-                return _buildHistoryItem(item);
-              },
-            ),
+                          final item = displayItems[index];
+                          return _buildHistoryItem(item);
+                        },
+                      ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHistoryItem(HistoryItem item) {
+  Widget _buildHistoryItem(ConversationItem item) {
+    final formattedDate = _formatTimestamp(item.createdAt);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -214,7 +262,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 Row(children: [
                   Expanded(
                     child: Text(
-                      item.message,
+                      "ID: ${item.id}",
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
@@ -223,30 +271,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_horiz),
-                    onPressed: () {
-                      // Show options menu
-                    },
-                  ),
                 ]),
+                const SizedBox(height: 2),
                 Row(
                   children: [
                     CircleAvatar(
                       radius: 12,
                       backgroundColor: const Color(0xFF8A70FF),
-                      child: ClipOval(
-                        child: Image.network(
-                          'https://via.placeholder.com/24',
-                          width: 24,
-                          height: 24,
-                          fit: BoxFit.cover,
-                        ),
+                      child: const Icon(
+                        Icons.smart_toy,
+                        size: 16,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Monica',
+                      'Assistant',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -254,7 +294,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      _getTimeAgo(item.timestamp),
+                      formattedDate,
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
@@ -264,138 +304,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ],
             ),
+            onTap: () => {_navigateToChatScreen(item)},
           ),
         ),
         Divider(color: Colors.grey[200]),
       ],
     );
   }
-
-  String _getTimeAgo(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago';
-    } else {
-      return '${difference.inDays} days ago';
-    }
-  }
-
-  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          titlePadding: EdgeInsets.zero,
-          title: Stack(
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text(
-                  'Are you sure to delete?',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            'Are you sure to delete all items? Favorites will be retained.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.black54,
-            ),
-          ),
-          actions: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.grey.shade200,
-                        foregroundColor: Colors.black87,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text(
-                        'Delete',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        // Add your delete logic here
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('All items have been deleted'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class HistoryItem {
-  final String title;
-  final String message;
-  final DateTime timestamp;
-
-  HistoryItem({
-    required this.title,
-    required this.message,
-    required this.timestamp,
-  });
 }

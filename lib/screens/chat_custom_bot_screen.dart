@@ -232,11 +232,11 @@ class _ChatCustomBotScreenState extends State<ChatCustomBotScreen> {
                         padding: EdgeInsets.only(
                           bottom: MediaQuery.of(context).viewInsets.bottom,
                         ),
-                        child: PromptBottomSheet(
-                          prompt: prompt.content,
-                          title: prompt.title,
-                          description: prompt.description,
-                        ),
+                        // child: PromptBottomSheet(
+                        //   prompt: prompt.content,
+                        //   title: prompt.title,
+                        //   description: prompt.description,
+                        // ),
                       ),
                     );
                   },

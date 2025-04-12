@@ -4,12 +4,17 @@ import 'prompt_card.dart';
 import 'create_prompt_dialog.dart';
 import 'delete_prompt_dialog.dart';
 import '../../services/prompt_service.dart';
-import '../../models/prompt_response.dart';
+import '../homepage_screen/prompt_bottom_sheet.dart';
 
 class PromptLibraryScreen extends StatefulWidget {
   const PromptLibraryScreen({
     super.key,
+    required this.selectedModelIndex,
+    required this.remainingTokens,
   });
+
+  final int selectedModelIndex;
+  final int remainingTokens;
 
   @override
   State<PromptLibraryScreen> createState() => _PromptLibraryScreenState();
@@ -489,7 +494,36 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                                     isPublicPrompt: _isPublicTab,
                                     onToggleFavorite: () =>
                                         _toggleFavorite(prompt.id),
-                                    onTap: () {},
+                                    onTap: () {
+                                      // Navigate to homepage and show prompt bottom sheet
+                                      Navigator.pop(
+                                          context); // Go back to homepage
+                                      // Show the PromptBottomSheet after navigation
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          builder: (context) => Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: MediaQuery.of(context)
+                                                  .viewInsets
+                                                  .bottom,
+                                            ),
+                                            child: PromptBottomSheet(
+                                              prompt: prompt.content,
+                                              title: prompt.title,
+                                              description:
+                                                  prompt.description ?? '',
+                                              selectedModelIndex:
+                                                  widget.selectedModelIndex,
+                                              remainingTokens:
+                                                  widget.remainingTokens,
+                                            ),
+                                          ),
+                                        );
+                                      });
+                                    },
                                     onEdit: _isPublicTab
                                         ? null
                                         : () {

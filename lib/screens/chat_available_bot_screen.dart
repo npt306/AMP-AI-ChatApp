@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
-import 'testScreen.dart';
 import './history_screen.dart';
 import 'prompt_library_screen/prompt.dart';
 import './homepage_screen/prompt_bottom_sheet.dart';
+import '../services/ai_chat_service.dart';
+import '../services/prompt_service.dart';
+import '../models/prompt.dart' as prompt;
 
 class ChatAvailableBotScreen extends StatefulWidget {
-  const ChatAvailableBotScreen({super.key});
+  final String initialMessage;
+  final int selectedModelIndex;
+  final int remainingTokens;
+
+  const ChatAvailableBotScreen({
+    Key? key,
+    required this.initialMessage,
+    required this.selectedModelIndex,
+    required this.remainingTokens,
+  }) : super(key: key);
 
   @override
   State<ChatAvailableBotScreen> createState() => _ChatAvailableBotScreenState();
@@ -16,158 +27,411 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   int _selectedModelIndex = 0;
-  final int _remainingTokens = 100;
+  int _remainingTokens = 0;
+  List<Map<String, dynamic>> _chatMessages = [];
+  String _selectedModelLabel = '';
+  String _selectedModelId = '';
+  String _selectedModelImage = '';
+  String _selectedModelDescription = '';
+  String _selectedModelCompany = '';
+
   final List<Map<String, dynamic>> aiModes = const [
     {
-      'image': 'assets/images/deepseek.png',
-      'label': 'DeepSeek V3',
-    },
-    {
-      'image': 'assets/images/gpt.webp',
-      'label': 'GPT-4',
+      'image': 'assets/images/claude.png',
+      'label': 'Claude 3 Haiku',
+      'value': 'claude-3-haiku-20240307',
+      'company': 'Anthropic',
     },
     {
       'image': 'assets/images/claude.png',
-      'label': 'Claude 3',
+      'label': 'Claude 3.5 Sonnet',
+      'value': 'claude-3-5-sonnet-20240620',
+      'company': 'Anthropic',
     },
     {
-      'image': 'assets/images/llama.png',
-      'label': 'Llama 3',
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Flash',
+      'value': 'gemini-1.5-flash-latest',
+      'company': 'Google DeepMind',
+    },
+    {
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Pro',
+      'value': 'gemini-1.5-pro-latest',
+      'company': 'Google DeepMind',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o',
+      'value': 'gpt-4o',
+      'company': 'OpenAI',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o Mini',
+      'value': 'gpt-4o-mini',
+      'company': 'OpenAI',
     },
   ];
 
-  final List<String> _aiResponses = [
-    "I'm here to help you!",
-    "What can I do for you today?",
-    "Feel free to ask me anything.",
-    "I'm ready to assist you.",
-    "How can I make your day better?",
-  ];
+  @override
+  void initState() {
+    super.initState();
+    print('ChatAvailableBotScreen initState called');
+    _selectedModelIndex = widget.selectedModelIndex;
+    _remainingTokens = widget.remainingTokens;
+    _selectedModelLabel = aiModes[_selectedModelIndex]['label'];
+    _selectedModelImage = aiModes[_selectedModelIndex]['image'];
+    _selectedModelId = aiModes[_selectedModelIndex]['value'];
+    _selectedModelDescription = _getModelDescription(_selectedModelLabel);
+    _selectedModelCompany = aiModes[_selectedModelIndex]['company'];
 
-  List<Map<String, String>> _chatMessages = [];
+    _messageController.addListener(() {
+      final text = _messageController.text;
+      if (text == '/') {
+        _showPromptsDialog(context);
+      }
+    });
+
+    // Call sendMessage API when the page loads
+    if (widget.initialMessage.isNotEmpty) {
+      _chatMessages.add({
+        'sender': 'user',
+        'message': widget.initialMessage,
+      });
+
+      AiChatService.sendMessage(
+        content: widget.initialMessage,
+        modelId: _selectedModelId,
+        modelName: _selectedModelLabel,
+      ).then((response) {
+        setState(() {
+          _chatMessages.add({
+            'sender': 'ai',
+            'message': response.message,
+          });
+          _remainingTokens = response.remainingUsage;
+        });
+      }).catchError((error) {
+        // Handle error
+        print('Error sending message: $error');
+      });
+
+      _fetchPrompts();
+    }
+  }
+
+  // Add this property to store fetched prompts
+  List<prompt.Prompt> _prompts = [];
+  bool _isLoadingPrompts = true;
+  // Add this method to fetch prompts from API
+  Future<void> _fetchPrompts() async {
+    setState(() {
+      _isLoadingPrompts = true;
+    });
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      setState(() {
+        _prompts = promptResponse.items;
+        _isLoadingPrompts = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPrompts = false;
+      });
+      // You might want to add error handling here
+      print('Error fetching prompts: $e');
+    }
+  }
+
+  Map<String, dynamic> formatMessage({
+    required String sender,
+    required String message,
+    required String modelId,
+    required String modelName,
+  }) {
+    return {
+      'role': sender == 'user' ? 'user' : 'model',
+      'content': message,
+      'files': [],
+      'assistant': {
+        'id': modelId,
+        'model': 'dify',
+        'name': modelName,
+      },
+    };
+  }
+
+  void _sendMessage() {
+    if (_messageController.text.trim().isNotEmpty) {
+      final userMessage = _messageController.text.trim();
+
+      setState(() {
+        _chatMessages.add({
+          'sender': 'user',
+          'message': userMessage,
+        });
+      });
+
+      AiChatService.sendMessage(
+        content: widget.initialMessage,
+        modelId: _selectedModelId,
+        modelName: _selectedModelLabel,
+      ).then((response) {
+        setState(() {
+          _chatMessages.add({
+            'sender': 'ai',
+            'message': response.message,
+          });
+          _remainingTokens = response.remainingUsage;
+        });
+      }).catchError((error) {
+        // Handle error
+        print('Error sending message: $error');
+      });
+
+      _messageController.clear();
+    }
+  }
+
+  void _chatWithBot() {
+    if (_messageController.text.trim().isNotEmpty) {
+      final userMessage = _messageController.text.trim();
+
+      setState(() {
+        _chatMessages.add({
+          'sender': 'user',
+          'message': userMessage,
+        });
+      });
+
+      final formattedMessages = _chatMessages.map((msg) {
+        return formatMessage(
+          sender: msg['sender'],
+          message: msg['message'],
+          modelId: _selectedModelId,
+          modelName: _selectedModelLabel,
+        );
+      }).toList();
+
+      // print('Formatted Messages: $formattedMessages');
+
+      AiChatService.chatWithBot(
+        messages: formattedMessages,
+        modelId: _selectedModelId,
+        modelName: _selectedModelLabel,
+      ).then((response) {
+        // print('API response: ${response.message}');
+        setState(() {
+          _chatMessages.add({
+            'sender': 'ai',
+            'message': response.message,
+          });
+          _remainingTokens = response.remainingUsage;
+        });
+      }).catchError((error) {
+        print('Error chatting with bot: $error');
+      });
+
+      _messageController.clear();
+    }
+  }
+
+  String _getModelDescription(String modelName) {
+    switch (modelName) {
+      case 'Claude 3 Haiku':
+        return 'Fast and efficient model for quick responses';
+      case 'Claude 3.5 Sonnet':
+        return 'Advanced model for complex tasks and analysis';
+      case 'Gemini 1.5 Flash':
+        return 'Quick and efficient model for everyday tasks';
+      case 'Gemini 1.5 Pro':
+        return 'Powerful model for professional use';
+      case 'GPT-4o':
+        return 'Most capable model for general tasks';
+      case 'GPT-4o Mini':
+        return 'Lightweight version for faster responses';
+      default:
+        return '';
+    }
+  }
+
+  void _updateModelSelection(int index) {
+    setState(() {
+      _selectedModelIndex = index;
+      _selectedModelLabel = aiModes[index]['label'];
+      _selectedModelImage = aiModes[index]['image'];
+      _selectedModelId = aiModes[index]['value'];
+      _selectedModelDescription = _getModelDescription(_selectedModelLabel);
+      _selectedModelCompany = aiModes[index]['company'];
+    });
+  }
 
   void _showAllModelsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Select AI Model',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 20),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                      const Text(
+                        'Select AI Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Choose the AI model that best suits your needs',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                // Subtitle and description
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Choose the AI model that best suits your needs',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                ...aiModes.map((mode) {
-                  final isSelected = aiModes[_selectedModelIndex] == mode;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF8A70FF)
-                            : Colors.grey.shade200,
-                        width: 2,
-                      ),
-                      color:
-                          isSelected ? const Color(0xFFF5F3FF) : Colors.white,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedModelIndex = aiModes.indexOf(mode);
-                        });
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(8),
-                              child: Image.asset(
-                                mode['image'],
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    mode['label'],
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _getModelDescription(mode['label']),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isSelected)
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF8A70FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                              ),
-                          ],
+
+                // Model list
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: aiModes.map((mode) {
+                      final isSelected = aiModes[_selectedModelIndex] == mode;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF8A70FF)
+                                : Colors.grey[200]!,
+                            width: 1.5,
+                          ),
+                          color: isSelected
+                              ? const Color(0xFFF5F3FF)
+                              : Colors.white,
                         ),
-                      ),
-                    ),
-                  );
-                }),
+                        child: InkWell(
+                          onTap: () {
+                            _updateModelSelection(aiModes.indexOf(mode));
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Model icon
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    // color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color:
+                                          Colors.grey[100]!, // ✅ màu viền đen
+                                      width:
+                                          0.5, // ✅ độ dày viền (có thể chỉnh)
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.all(6),
+                                  child: Image.asset(
+                                    mode['image'],
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Model info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        mode['label'],
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _getModelDescription(mode['label']),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Selected indicator
+                                if (isSelected)
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF8A70FF),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -176,21 +440,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     );
   }
 
-  String _getModelDescription(String modelName) {
-    switch (modelName) {
-      case 'DeepSeek V3':
-        return 'Best for code generation and technical tasks';
-      case 'GPT-4':
-        return 'Most capable model for general tasks';
-      case 'Claude 3':
-        return 'Excellent for analysis and long-form content';
-      case 'Llama 3':
-        return 'Best for code generation and technical tasks';
-      default:
-        return '';
-    }
-  }
-
+  // Update this method to use prompts from API
   void _showPromptsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -211,83 +461,93 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           ),
           child: Material(
             color: Colors.transparent,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: samplePrompts.length,
-              itemBuilder: (context, index) {
-                final prompt = samplePrompts[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  title: Text(
-                    prompt.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Text(
-                    prompt.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
+            child: _isLoadingPrompts
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _prompts.length,
+                    itemBuilder: (context, index) {
+                      final prompt = _prompts[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        child: PromptBottomSheet(
-                          prompt: prompt.content,
-                          title: prompt.title,
-                          description: prompt.description,
+                        title: Text(
+                          prompt.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                        subtitle: Text(
+                          prompt.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final result = await showModalBottomSheet<String>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (context) => Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    MediaQuery.of(context).viewInsets.bottom,
+                              ),
+                              child: PromptBottomSheet(
+                                prompt: prompt.content,
+                                title: prompt.title,
+                                description: prompt.description ?? '',
+                                selectedModelIndex: _selectedModelIndex,
+                                remainingTokens: _remainingTokens,
+                                isInChatScreen: true,
+                              ),
+                            ),
+                          );
+
+                          // Nếu nhận được kết quả (nội dung tin nhắn), gửi nó trong khung chat hiện tại
+                          if (result != null && result.isNotEmpty) {
+                            setState(() {
+                              _chatMessages.add({
+                                'sender': 'user',
+                                'message': result,
+                              });
+                            });
+
+                            // Gọi API để gửi tin nhắn
+                            final formattedMessages = _chatMessages.map((msg) {
+                              return formatMessage(
+                                sender: msg['sender'],
+                                message: msg['message'],
+                                modelId: _selectedModelId,
+                                modelName: _selectedModelLabel,
+                              );
+                            }).toList();
+
+                            AiChatService.chatWithBot(
+                              messages: formattedMessages,
+                              modelId: _selectedModelId,
+                              modelName: _selectedModelLabel,
+                            ).then((response) {
+                              setState(() {
+                                _chatMessages.add({
+                                  'sender': 'ai',
+                                  'message': response.message,
+                                });
+                                _remainingTokens = response.remainingUsage;
+                              });
+                            }).catchError((error) {
+                              print('Error chatting with bot: $error');
+                            });
+                          }
+                        },
+                      );
+                    },
+                  ),
           ),
         ),
       ),
     );
-  }
-
-  void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
-      setState(() {
-        // Add the user's message to the chat
-        _chatMessages.add({
-          'sender': 'user',
-          'message': _messageController.text.trim(),
-        });
-
-        // Add a dynamic AI response to the chat
-        final response = _aiResponses[
-            DateTime.now().millisecondsSinceEpoch % _aiResponses.length];
-        _chatMessages.add({
-          'sender': 'ai',
-          'message': response,
-        });
-      });
-      _messageController.clear();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messageController.addListener(() {
-      final text = _messageController.text;
-      if (text == '/') {
-        _showPromptsDialog(context);
-      }
-    });
   }
 
   @override
@@ -313,16 +573,16 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Image.asset(
-                'assets/images/gpt.webp',
+                _selectedModelImage,
                 width: 20, // Kích thước ảnh tương đương size của Icon
                 height: 20,
                 fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'ChatGPT',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
+            Text(
+              _selectedModelLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
             ),
           ],
         ),
@@ -354,7 +614,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Image.asset(
-                        'assets/images/gpt.webp',
+                        _selectedModelImage,
                         width: 30, // Kích thước ảnh tương đương size của Icon
                         height: 30,
                         fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
@@ -365,22 +625,23 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Assistant',
-                          style: TextStyle(
+                        Text(
+                          _selectedModelLabel,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 2),
                         RichText(
-                          text: const TextSpan(
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          text: TextSpan(
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
                             children: [
-                              TextSpan(text: 'By '),
+                              const TextSpan(text: 'By '),
                               TextSpan(
-                                text: '@OpenAI',
-                                style: TextStyle(
+                                text: '@${_selectedModelCompany.toString()}',
+                                style: const TextStyle(
                                   color: Colors.blue,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -393,44 +654,9 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.black,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ), // Chỉnh padding
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        minimumSize: Size.zero, // Bỏ kích thước tối thiểu
-                        tapTargetSize: MaterialTapTargetSize
-                            .shrinkWrap, // Thu nhỏ button theo content
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize
-                            .min, // Quan trọng: giúp Row chỉ rộng vừa đủ nội dung
-                        children: [
-                          Icon(Icons.info_outline, size: 22),
-                          SizedBox(width: 4),
-                          Text('Bot info', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'General-purpose assistant. Write, code, ask for real-time information, create images, and more.',
-                  style: TextStyle(
+                Text(
+                  _selectedModelDescription,
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
                     height: 1.4,
@@ -501,7 +727,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.bolt,
                             size: 20,
                             color: const Color.fromARGB(255, 47, 0, 255),
@@ -563,27 +789,58 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                     ),
                     const Spacer(),
                     // History icon button
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const HistoryScreen()),
-                          );
-                        },
-                        child: Icon(
-                          Icons.history,
-                          size: 24,
-                          color: Colors.grey[800],
+                    Row(
+                      children: [
+                        // Nút History
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HistoryScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.history,
+                              size: 24,
+                              color: Colors.grey[800],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+
+                        // Nút Làm mới
+                        GestureDetector(
+                          onTap: () async {
+                            // final response = await AiChatService.sendMessage(
+                            //   content: 'Hello AI!',
+                            //   modelId: 'claude-3-haiku-20240307',
+                            //   modelName: 'Claude 3 Haiku',
+                            // );
+
+                            // print(response); // xử lý response nếu cần
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.refresh,
+                              size: 24,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -673,7 +930,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             ),
                             IconButton(
                               icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: _sendMessage,
+                              onPressed: _chatWithBot,
                             ),
                           ],
                         ),
