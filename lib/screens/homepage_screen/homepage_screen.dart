@@ -23,10 +23,23 @@ class HomepageScreen extends StatefulWidget {
 class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
-  int _remainingTokens = 0; // Initialize with 0 instead of hardcoded value
-  final bool _isPro = true; // Add pro status check
+  int _remainingTokens = 0;
+  final bool _isPro = true;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
+  String _currentQuery = '';
+
+  // Add this field to track overlay state
+  bool _isOverlayShowing = false;
+  // Optionally keep a reference to the current overlay entry
+  OverlayEntry? _currentOverlayEntry;
+
+  // Add this property to store fetched prompts
+  List<Prompt> _prompts = [];
+  List<Prompt> _dialogPrompts = []; // Add this for dialog prompts
+  bool _isLoadingPrompts = true;
+  bool _isLoadingDialogPrompts = false; // Add this for dialog loading state
+
   final List<Map<String, dynamic>> aiModes = const [
     {
       'image': 'assets/images/claude.png',
@@ -60,16 +73,12 @@ class _HomepageScreenState extends State<HomepageScreen> {
     },
   ];
 
-  // Add this property to store fetched prompts
-  List<Prompt> _prompts = [];
-  bool _isLoadingPrompts = true;
-
   @override
   void initState() {
     super.initState();
     _messageController.addListener(() {
       final text = _messageController.text;
-      if (text == '/') {
+      if (text == '/' && _messageFocusNode.hasFocus && !_isOverlayShowing) {
         _showPromptsDialog(context);
       }
     });
@@ -89,8 +98,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
     try {
       final promptResponse = await PromptService.getPrompts(
-        limit: 10,
-        offset: 0,
+        limit: 10, // Initial page size
+        offset: 0, // Starting from the beginning
         isPublic: true,
       );
 
@@ -102,7 +111,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
       setState(() {
         _isLoadingPrompts = false;
       });
-      // You might want to add error handling here
       print('Error fetching prompts: $e');
     }
   }
@@ -117,6 +125,32 @@ class _HomepageScreenState extends State<HomepageScreen> {
     } catch (e) {
       print('Error fetching token usage: $e');
       // Keep the default value if there's an error
+    }
+  }
+
+  // Add this method to fetch prompts with query for dialog
+  Future<void> _fetchDialogPrompts(String query) async {
+    _isLoadingDialogPrompts = true;
+    if (_currentOverlayEntry != null) {
+      _currentOverlayEntry!.markNeedsBuild();
+    }
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        query: query,
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      _dialogPrompts = promptResponse.items;
+    } catch (e) {
+      print('Error fetching dialog prompts: $e');
+    } finally {
+      _isLoadingDialogPrompts = false;
+      if (_currentOverlayEntry != null) {
+        _currentOverlayEntry!.markNeedsBuild();
+      }
     }
   }
 
@@ -283,78 +317,260 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
-  // Update this method to use prompts from API
   void _showPromptsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+    // Return early if an overlay is already showing
+    if (_isOverlayShowing) return;
+
+    _isOverlayShowing = true;
+    _currentQuery = ''; // Reset query when opening dialog
+    _dialogPrompts = []; // Reset dialog prompts
+
+    // Get the render box of the text field to calculate position
+    final RenderBox inputBox =
+        _messageFocusNode.context!.findRenderObject() as RenderBox;
+    final offset = inputBox.localToGlobal(Offset.zero);
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    // Create a scroll controller to detect when we reach the bottom
+    final ScrollController scrollController = ScrollController();
+
+    // Track pagination state
+    int currentOffset = 0;
+    const int pageSize = 10;
+    bool isLoadingMore = false;
+    bool hasMoreData = true;
+
+    // Pre-declare function variables to avoid circular references
+    late void Function() textListener;
+    late void Function() slashListener;
+
+    // Function to close dialog and clear the "/" character
+    void closeDialog() {
+      if (_messageController.text.startsWith('/')) {
+        _messageController.clear();
+      }
+
+      // Only remove if it hasn't been removed already
+      if (_isOverlayShowing) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+
+        // Update tracking variable
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    }
+
+    // Define the listener functions after pre-declaration
+    textListener = () {
+      if (!_messageFocusNode.hasFocus) {
+        if (_messageController.text.startsWith('/')) {
+          _messageController.clear();
+        }
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    };
+
+    slashListener = () {
+      final text = _messageController.text;
+      if (text.isEmpty || !text.startsWith('/')) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      } else {
+        // Extract query from text after '/'
+        final newQuery = text.substring(1).trim();
+        if (newQuery != _currentQuery) {
+          _currentQuery = newQuery;
+          // Reset pagination state
+          currentOffset = 0;
+          hasMoreData = true;
+          // Fetch prompts with new query (empty string for default prompts)
+          _fetchDialogPrompts(_currentQuery);
+        }
+      }
+    };
+
+    // Function to load more prompts
+    Future<void> loadMorePrompts() async {
+      if (isLoadingMore || !hasMoreData) return;
+
+      isLoadingMore = true;
+      try {
+        currentOffset += pageSize;
+        final promptResponse = await PromptService.getPrompts(
+          query: _currentQuery,
+          limit: pageSize,
+          offset: currentOffset,
+          isPublic: true,
+        );
+
+        if (promptResponse.items.isEmpty) {
+          hasMoreData = false;
+        } else {
+          _dialogPrompts.addAll(promptResponse.items);
+        }
+
+        // Force rebuild of overlay
+        overlayEntry.markNeedsBuild();
+      } catch (e) {
+        print('Error loading more prompts: $e');
+      } finally {
+        isLoadingMore = false;
+      }
+    }
+
+    // Add scroll listener
+    scrollController.addListener(() {
+      if (scrollController.position.pixels >=
+              scrollController.position.maxScrollExtent -
+                  100 && // 100px before the end
+          !isLoadingMore &&
+          hasMoreData) {
+        loadMorePrompts();
+      }
+    });
+
+    // Initial fetch of prompts when dialog opens
+    _fetchDialogPrompts('');
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Invisible full-screen GestureDetector to handle outside taps
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: closeDialog,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.transparent),
+            ),
           ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: _isLoadingPrompts
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _prompts.length,
-                    itemBuilder: (context, index) {
-                      final prompt = _prompts[index];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        title: Text(
-                          prompt.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        subtitle: Text(
-                          prompt.content,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            builder: (context) => Padding(
-                              padding: EdgeInsets.only(
-                                bottom:
-                                    MediaQuery.of(context).viewInsets.bottom,
+          // The actual prompt dialog
+          Positioned(
+            bottom: MediaQuery.of(context).size.height - offset.dy + 20,
+            left: 16,
+            right: 100,
+            child: GestureDetector(
+              onTap: () {},
+              child: Material(
+                elevation: 0,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.grey[200]!,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _isLoadingDialogPrompts
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
                               ),
-                              child: PromptBottomSheet(
-                                prompt: prompt.content,
-                                title: prompt.title,
-                                description: prompt.description ?? '',
-                                selectedModelIndex: _selectedModelIndex,
-                                remainingTokens: _remainingTokens,
-                                isInChatScreen: false,
+                            )
+                          : Expanded(
+                              child: ListView.builder(
+                                controller: scrollController,
+                                shrinkWrap: true,
+                                itemCount: _dialogPrompts.length +
+                                    (hasMoreData ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  // Show loading indicator at the end
+                                  if (index == _dialogPrompts.length) {
+                                    return const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16.0),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final prompt = _dialogPrompts[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 4,
+                                    ),
+                                    title: Text(
+                                      prompt.title,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      // Close the prompts dialog first
+                                      closeDialog();
+
+                                      // Show the prompt bottom sheet
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        builder: (context) => Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: MediaQuery.of(context)
+                                                .viewInsets
+                                                .bottom,
+                                          ),
+                                          child: PromptBottomSheet(
+                                            prompt: prompt.content,
+                                            title: prompt.title,
+                                            description:
+                                                prompt.description ?? '',
+                                            selectedModelIndex:
+                                                _selectedModelIndex,
+                                            remainingTokens: _remainingTokens,
+                                            isInChatScreen: false,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
                             ),
-                          );
-                        },
-                      );
-                    },
+                    ],
                   ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
+
+    // Store a reference to the current overlay entry
+    _currentOverlayEntry = overlayEntry;
+
+    overlay.insert(overlayEntry);
+    _messageFocusNode.addListener(textListener);
+    _messageController.addListener(slashListener);
   }
 
   void _navigateToChatScreen(String message) {
@@ -375,6 +591,12 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
   @override
   void dispose() {
+    // If there's an active overlay when disposing, remove it
+    if (_isOverlayShowing && _currentOverlayEntry != null) {
+      _currentOverlayEntry!.remove();
+      _isOverlayShowing = false;
+    }
+
     _messageController.dispose();
     _messageFocusNode.dispose();
     super.dispose();

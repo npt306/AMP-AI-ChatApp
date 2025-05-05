@@ -148,17 +148,27 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                   if (_showPrompt) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      width: double.infinity,
+                      height: 120, // Fixed height - adjust as needed
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
+                        color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.grey[200]!),
                       ),
-                      child: Text(
-                        widget.prompt,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
+                      child: Scrollbar(
+                        thickness: 4,
+                        radius: const Radius.circular(8),
+                        thumbVisibility: true, // Always show scrollbar
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(12),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Text(
+                            widget.prompt,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
+                          ),
                         ),
                       ),
                     ),
