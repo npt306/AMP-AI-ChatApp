@@ -24,10 +24,20 @@ class PromptBottomSheet extends StatefulWidget {
 class _PromptBottomSheetState extends State<PromptBottomSheet> {
   bool _showPrompt = false;
   final TextEditingController _topicController = TextEditingController();
+  final FocusNode _topicFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _topicFocusNode.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _topicController.dispose();
+    _topicFocusNode.dispose();
     super.dispose();
   }
 
@@ -78,7 +88,7 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(0, 16, 8, 8),
               child: Row(
                 children: [
                   IconButton(
@@ -187,6 +197,7 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                 ),
                 child: TextField(
                   controller: _topicController,
+                  focusNode: _topicFocusNode,
                   decoration: const InputDecoration(
                     focusedBorder: OutlineInputBorder(
                       borderSide: BorderSide.none,
@@ -199,9 +210,9 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                     hintText: 'Topic',
                     hintStyle: TextStyle(
                       color: Colors.black38,
-                      fontSize: 16,
+                      fontSize: 14,
                     ),
-                    contentPadding: EdgeInsets.all(16),
+                    contentPadding: EdgeInsets.all(8),
                     border: InputBorder.none,
                   ),
                   maxLines: 3,
