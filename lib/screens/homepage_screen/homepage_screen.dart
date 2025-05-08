@@ -12,6 +12,8 @@ import '../knowledge_manager_screen.dart';
 import '../../services/prompt_service.dart';
 import '../../models/prompt.dart';
 import '../../services/token_service.dart';
+import '../../services/subscription_service.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -24,7 +26,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
   int _remainingTokens = 0;
-  final bool _isPro = true;
+  bool _isPro = false;
+  String _subscriptionType = 'Basic';
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   String _currentQuery = '';
@@ -88,6 +91,21 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
     // Fetch token usage
     _fetchTokenUsage();
+
+    // Check subscription
+    _checkSubscription();
+  }
+
+  Future<void> _checkSubscription() async {
+    try {
+      final usage = await SubscriptionService.getUsage();
+      setState(() {
+        _subscriptionType = usage['subscriptionType'];
+        _isPro = _subscriptionType != 'basic';
+      });
+    } catch (e) {
+      print('Error checking subscription: $e');
+    }
   }
 
   // Add this method to fetch prompts from API
@@ -675,19 +693,28 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 201, 195, 235),
-                foregroundColor: Colors.white,
+                backgroundColor: _isPro
+                    ? const Color(0xFFFFB800) // Pro color
+                    : const Color.fromARGB(255, 201, 195, 235), // Free color
+                foregroundColor: _isPro ? Colors.black87 : Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 minimumSize: const Size(0, 36),
               ),
-              icon: const Icon(Icons.auto_awesome, size: 16),
+              icon: Icon(
+                _isPro ? FontAwesomeIcons.crown : Icons.auto_awesome,
+                size: 16,
+                color: _isPro ? Colors.black87 : Colors.white,
+              ),
               label: Text(
                 _isPro ? 'Pro' : 'Upgrade',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _isPro ? Colors.black87 : Colors.white,
+                ),
               ),
             ),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/subscription_service.dart';
 
 class UpgradeScreen extends StatefulWidget {
   const UpgradeScreen({super.key});
@@ -11,6 +12,45 @@ class UpgradeScreen extends StatefulWidget {
 class _UpgradeScreenState extends State<UpgradeScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  bool _isLoading = false;
+
+  Future<void> _handleSubscribe() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('Starting subscription process...');
+      final result = await SubscriptionService.subscribe();
+      print('Subscription result: $result');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Successfully subscribed!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      print('Error during subscription: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -46,14 +86,14 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                 });
               },
               children: [
-                // Basic Plan
+                // Free Plan
                 SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: _buildPlanCard(
                       context,
-                      title: 'Basic',
-                      subtitle: 'Free',
+                      title: 'Free',
+                      subtitle: 'US\$0.0',
                       isHotPick: false,
                       buttonColor: Colors.grey.shade200,
                       buttonTextColor: Colors.black87,
@@ -69,29 +109,13 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                     child: _buildPlanCard(
                       context,
                       title: 'Starter',
-                      subtitle: '1-month Free Trial',
-                      price: '\$9.99/month',
-                      isHotPick: false,
-                      buttonColor: const Color(0xFF0078D4),
-                      buttonTextColor: Colors.white,
-                      features: _getStarterFeatures(),
-                    ),
-                  ),
-                ),
-
-                // Pro Plan
-                SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _buildPlanCard(
-                      context,
-                      title: 'Pro Annually',
-                      subtitle: '1-month Free Trial',
-                      price: '\$79.99/year',
+                      subtitle: 'Flash Sale 50%',
+                      price: 'US\$6.67/month',
+                      annualPrice: 'US\$79.9/year',
                       isHotPick: true,
                       buttonColor: const Color(0xFFFFB800),
                       buttonTextColor: Colors.black87,
-                      features: _getProFeatures(),
+                      features: _getStarterFeatures(),
                     ),
                   ),
                 ),
@@ -104,7 +128,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
-                3,
+                2, // Changed to 2 plans
                 (index) => Container(
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   width: 8,
@@ -129,6 +153,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
     required String title,
     required String subtitle,
     String? price,
+    String? annualPrice,
     required bool isHotPick,
     required Color buttonColor,
     required Color buttonTextColor,
@@ -136,17 +161,13 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: title == 'Basic' 
+        color: title == 'Free'
             ? Colors.white
-            : title == 'Starter'
-                ? const Color(0xFFEDF6FF) // Light blue background
-                : const Color(0xFFFFFBEC), // Light yellow background
+            : const Color(0xFFFFFBEC), // Light yellow background for Starter
         border: Border.all(
-          color: title == 'Basic'
+          color: title == 'Free'
               ? Colors.grey.shade200
-              : title == 'Starter'
-                  ? const Color(0xFF0078D4).withOpacity(0.3)
-                  : const Color(0xFFFFB800).withOpacity(0.3),
+              : const Color(0xFFFFB800).withOpacity(0.3),
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -163,12 +184,10 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                     Row(
                       children: [
                         Icon(
-                          title == 'Basic'
+                          title == 'Free'
                               ? Icons.wb_sunny_outlined
-                              : title == 'Starter'
-                                  ? Icons.all_inclusive
-                                  : FontAwesomeIcons.crown,
-                          color: title == 'Pro Annually'
+                              : FontAwesomeIcons.crown,
+                          color: title == 'Starter'
                               ? const Color(0xFFFFB800)
                               : const Color(0xFF0078D4),
                         ),
@@ -193,78 +212,57 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                     ),
                     if (price != null) ...[
                       const SizedBox(height: 4),
-                      const Text(
-                        'Then',
-                        style: TextStyle(
-                          color: Colors.grey,
+                      Text(
+                        price,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            price,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
+                      if (annualPrice != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          annualPrice,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
                           ),
-                          if (title == 'Pro Annually') ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0078D4),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.card_giftcard_outlined,
-                                    color: Colors.white,
-                                    size: 14,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'SAVE 33% ON ANNUAL PLAN!',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                        ),
+                      ],
                     ],
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: buttonColor,
-                          foregroundColor: buttonTextColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                    if (title != 'Free') ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleSubscribe,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: buttonColor,
+                            foregroundColor: buttonTextColor,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                        ),
-                        child: const Text(
-                          'Sign up to subscribe',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Subscribe',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -295,7 +293,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                     ),
                     SizedBox(width: 4),
                     Text(
-                      'HOT PICK',
+                      'FLASH SALE 50%',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -390,32 +388,35 @@ class PlanFeatureSection {
 List<PlanFeatureSection> _getBasicFeatures() {
   return [
     PlanFeatureSection(
-      'Basic features',
+      'AI Chat',
       [
-        PlanFeature('AI Chat Model', subtitle: 'GPT-3.5'),
-        PlanFeature('AI Action Injection'),
-        PlanFeature('Select Text for AI Action'),
+        PlanFeature('Basic Models',
+            subtitle: 'GPT-4o mini, Claude 3.5 Haiku, DeepSeek V3 & R1'),
+        PlanFeature('50 daily accesses'),
+        PlanFeature('Limited trial for image/video generation'),
+        PlanFeature(
+            'Basic model-driven smart writing, translation, and summary'),
+        PlanFeature('Limited trial for ChatPDF'),
       ],
     ),
     PlanFeatureSection(
-      'Limited queries per day',
+      'Application Integration',
       [
-        PlanFeature('50 free queries per day'),
+        PlanFeature('Gmail'),
+        PlanFeature('Teams'),
+        PlanFeature('Facebook'),
+        PlanFeature('X (Twitter)'),
+        PlanFeature('LinkedIn'),
       ],
     ),
     PlanFeatureSection(
-      'Advanced features',
+      'Cross-platform AI assistant',
       [
-        PlanFeature('AI Reading Assistant'),
-        PlanFeature('Real-time Web Access'),
-        PlanFeature('AI Writing Assistant'),
-        PlanFeature('AI Pro Search'),
-      ],
-    ),
-    PlanFeatureSection(
-      'Other benefits',
-      [
-        PlanFeature('Lower response speed during high traffic'),
+        PlanFeature('Chrome'),
+        PlanFeature('Windows'),
+        PlanFeature('Mac'),
+        PlanFeature('Android'),
+        PlanFeature('VS Code'),
       ],
     ),
   ];
@@ -424,78 +425,73 @@ List<PlanFeatureSection> _getBasicFeatures() {
 List<PlanFeatureSection> _getStarterFeatures() {
   return [
     PlanFeatureSection(
-      'Basic features',
+      'AI Chat',
       [
-        PlanFeature('AI Chat Models',
-            subtitle: 'GPT-3.5 & GPT-4.0/Turbo & Gemini Pro & Gemini Ultra'),
-        PlanFeature('AI Action Injection'),
-        PlanFeature('Select Text for AI Action'),
+        PlanFeature('Basic Models',
+            subtitle: 'GPT-4o mini, Claude 3.5 Haiku, DeepSeek V3 & R1'),
+        PlanFeature('Unlimited accesses'),
+        PlanFeature('Advanced Models',
+            subtitle:
+                'o1 & GPT-4o, Claude 3.7 Sonnet, Gemini 2.0 Pro, Llama 3.1 405B'),
+        PlanFeature('Unlimited accesses'),
+        PlanFeature('Web Search & Advanced Skills'),
+        PlanFeature('Multi-Model Answer Comparison'),
       ],
     ),
     PlanFeatureSection(
-      'More queries per month',
+      'AI Art',
       [
-        PlanFeature('Unlimited queries per month'),
+        PlanFeature('Image Generation',
+            subtitle: 'DALL·E 3, Stable Diffusion, Flux'),
+        PlanFeature('Video Generation', subtitle: 'Kling-powered'),
+        PlanFeature('Asset Creation'),
+        PlanFeature('Realtime Gen'),
+        PlanFeature('Realtime Canvas'),
+        PlanFeature('Intelligent Image Tools'),
       ],
     ),
     PlanFeatureSection(
-      'Advanced features',
+      'AI-Powered Reading',
       [
-        PlanFeature('AI Reading Assistant'),
-        PlanFeature('Real-time Web Access'),
-        PlanFeature('AI Writing Assistant'),
-        PlanFeature('AI Pro Search'),
-        PlanFeature('Jira Copilot Assistant'),
-        PlanFeature('Github Copilot Assistant'),
-        PlanFeature('Maximize productivity with unlimited* queries.'),
+        PlanFeature('ChatPDF'),
+        PlanFeature('Summarize Webpages'),
+        PlanFeature('Summarize Files'),
       ],
     ),
     PlanFeatureSection(
-      'Other benefits',
+      'AI-Powered Writing',
       [
-        PlanFeature('No request limits during high traffic'),
-        PlanFeature('2X faster response speed'),
-        PlanFeature('Priority email support'),
-      ],
-    ),
-  ];
-}
-
-List<PlanFeatureSection> _getProFeatures() {
-  return [
-    PlanFeatureSection(
-      'Basic features',
-      [
-        PlanFeature('AI Chat Models',
-            subtitle: 'GPT-3.5 & GPT-4.0/Turbo & Gemini Pro & Gemini Ultra'),
-        PlanFeature('AI Action Injection'),
-        PlanFeature('Select Text for AI Action'),
+        PlanFeature('Intelligent Writing'),
+        PlanFeature('Intelligent Reply'),
+        PlanFeature('Grammar Check'),
+        PlanFeature('Mindmap Generator'),
       ],
     ),
     PlanFeatureSection(
-      'More queries per year',
+      'AI Translation',
       [
-        PlanFeature('Unlimited queries per year'),
+        PlanFeature('Text Translation'),
+        PlanFeature('Webpage Translation'),
+        PlanFeature('PDF Translation'),
       ],
     ),
     PlanFeatureSection(
-      'Advanced features',
+      'Special Features',
       [
-        PlanFeature('AI Reading Assistant'),
-        PlanFeature('Real-time Web Access'),
-        PlanFeature('AI Writing Assistant'),
-        PlanFeature('AI Pro Search'),
-        PlanFeature('Jira Copilot Assistant'),
-        PlanFeature('Github Copilot Assistant'),
-        PlanFeature('Maximize productivity with unlimited* queries.'),
+        PlanFeature('Smart Toolbar'),
+        PlanFeature('PowerUP'),
+        PlanFeature('Multi-Platform Extensions'),
+        PlanFeature('1500 Advanced Credits'),
       ],
     ),
     PlanFeatureSection(
-      'Other benefits',
+      'Support & Benefits',
       [
-        PlanFeature('No request limits during high traffic'),
-        PlanFeature('2X faster response speed'),
-        PlanFeature('Priority email support'),
+        PlanFeature('Priority Email Support'),
+        PlanFeature('No Request Limit During High Traffic'),
+        PlanFeature('2x Response Speed'),
+        PlanFeature('5 Login Devices'),
+        PlanFeature('Save 33% with annual billing'),
       ],
     ),
   ];
