@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'manage_bot_screen.dart';
+import 'update_bot_screen.dart';
 import 'testScreen.dart';
 import './history_screen.dart';
 import 'prompt_library_screen/prompt.dart';
@@ -301,12 +301,14 @@ class _ChatCustomBotScreenState extends State<ChatCustomBotScreen> {
           IconButton(
             padding: const EdgeInsets.only(right: 6),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ManageBotScreen(),
-                ),
-              );
+              // TODO: Truyền đúng botId ở đây, ví dụ:
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => ManageBotScreen(botId: bot.id),
+              //   ),
+              // );
+              // Nếu không có botId, hãy xóa hoặc disable nút này.
             },
             icon: const Icon(Icons.edit, color: Colors.black, size: 24),
           ),
