@@ -243,14 +243,14 @@ class _EmailComposeScreenState extends State<EmailComposeScreen> {
                         _buildTextField(
                           'Sender',
                           _senderController,
-                          'Enter the email address of the person who sent you this email',
+                          'Enter the person who sent you this email',
                           isRequired: true,
                         ),
                         const SizedBox(height: 8),
                         _buildTextField(
                           'Receiver',
                           _receiverController,
-                          'Enter the email address you want to send the response to',
+                          'Enter email you want to send the response to',
                           isRequired: true,
                         ),
                         const SizedBox(height: 8),

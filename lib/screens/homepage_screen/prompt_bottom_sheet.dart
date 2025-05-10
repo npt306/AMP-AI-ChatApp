@@ -43,8 +43,8 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
 
   void _handleSend() {
     final topic = _topicController.text.trim();
-    final promptMessage = widget.prompt.replaceAll('[TOPIC]', topic);
-    final message = 'Template prompt: $promptMessage\nTopic: $topic';
+    final message = widget.prompt.replaceAll(RegExp(r'\[.*?\]'), topic);
+    // final message = 'Template prompt: $promptMessage\nTopic: $topic';
 
     print("Sending message to chat: $message");
 
