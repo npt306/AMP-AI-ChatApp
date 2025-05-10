@@ -1,0 +1,2 @@
+D:/Code/code/mobile/advanced feature/AMP-AI-ChatApp/android/app/.cxx/Debug/2cdy6d2v/x86_64/CMakeFiles/edit_cache.dir
+D:/Code/code/mobile/advanced feature/AMP-AI-ChatApp/android/app/.cxx/Debug/2cdy6d2v/x86_64/CMakeFiles/rebuild_cache.dir

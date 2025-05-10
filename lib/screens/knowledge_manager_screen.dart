@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import '../models/knowledge.dart';
+import '../services/knowledge_service.dart';
 
 // Knowledge Dataset Model
 class KnowledgeDataset {
@@ -8,15 +10,23 @@ class KnowledgeDataset {
   final String name;
   final String source;
   final DateTime dateAdded;
-  final String size;
 
   KnowledgeDataset({
     required this.id,
     required this.name,
     required this.source,
     required this.dateAdded,
-    required this.size,
   });
+
+  // Convert Knowledge to KnowledgeDataset
+  factory KnowledgeDataset.fromKnowledge(Knowledge knowledge) {
+    return KnowledgeDataset(
+      id: knowledge.id,
+      name: knowledge.knowledgeName,
+      source: 'Knowledge Base',
+      dateAdded: knowledge.createdAt,
+    );
+  }
 }
 
 // Main Screen
@@ -31,38 +41,48 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
   final List<KnowledgeDataset> _datasets = [];
   final TextEditingController _searchController = TextEditingController();
   List<KnowledgeDataset> _filteredDatasets = [];
-  final bool _isSearching = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _filteredDatasets = _datasets;
     _searchController.addListener(_filterDatasets);
-
-    // Add some sample data
-    _addSampleData();
+    _loadKnowledges();
   }
 
-  void _addSampleData() {
+  Future<void> _loadKnowledges() async {
     setState(() {
-      _datasets.addAll([
-        KnowledgeDataset(
-          id: '1',
-          name: 'Product Documentation',
-          source: 'File Upload',
-          dateAdded: DateTime.now().subtract(const Duration(days: 5)),
-          size: '2.4 MB',
-        ),
-        KnowledgeDataset(
-          id: '2',
-          name: 'Technical Specifications',
-          source: 'Google Drive',
-          dateAdded: DateTime.now().subtract(const Duration(days: 1)),
-          size: '3.7 MB',
-        ),
-      ]);
-      _filteredDatasets = List.from(_datasets);
+      _isLoading = true;
     });
+
+    try {
+      print('Loading knowledges...');
+      final knowledges = await KnowledgeService.getKnowledges();
+      print('Received knowledges: ${knowledges.length} items');
+
+      setState(() {
+        _datasets.clear();
+        _datasets
+            .addAll(knowledges.map((k) => KnowledgeDataset.fromKnowledge(k)));
+        _filteredDatasets = _datasets.toList();
+      });
+      print('Updated datasets: ${_datasets.length} items');
+    } catch (e) {
+      print('Error loading knowledges: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load knowledges: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _filterDatasets() {
@@ -82,105 +102,133 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
     });
   }
 
-  void _addDataset(KnowledgeDataset dataset) {
-    setState(() {
-      _datasets.add(dataset);
-      _filterDatasets();
-    });
+  Future<void> _addDataset(KnowledgeDataset dataset,
+      {String? description}) async {
+    if (dataset.source == 'Knowledge Base') {
+      try {
+        print('Creating knowledge: ${dataset.name}');
+        final knowledge = await KnowledgeService.createKnowledge(
+          knowledgeName: dataset.name,
+          description: description ?? 'No description provided',
+        );
+        print('Created knowledge: ${knowledge.id}');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.purple[400],
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        content: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(
-                'Dataset "${dataset.name}" added successfully',
-                style: const TextStyle(color: Colors.white),
-                overflow: TextOverflow.ellipsis,
+        setState(() {
+          _datasets.add(KnowledgeDataset.fromKnowledge(knowledge));
+          _filteredDatasets = _datasets.toList();
+        });
+        print('Updated datasets after adding: ${_datasets.length} items');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.purple[400],
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              content: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Dataset "${dataset.name}" added successfully',
+                      style: const TextStyle(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'DISMISS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
-            TextButton(
-              onPressed: () {
-                // Optional: Add any action button functionality here
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'DISMISS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+          );
+        }
+      } catch (e) {
+        print('Error creating knowledge: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to add knowledge: ${e.toString()}'),
+              backgroundColor: Colors.red,
             ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+          );
+        }
+      }
+    } else {
+      print('Adding dataset from source: ${dataset.source}');
+      setState(() {
+        _datasets.add(dataset);
+        _filteredDatasets = _datasets.toList();
+      });
+      print('Updated datasets after adding: ${_datasets.length} items');
+    }
   }
 
-  void _deleteDataset(String id) {
-    final datasetIndex = _datasets.indexWhere((dataset) => dataset.id == id);
-    if (datasetIndex >= 0) {
-      final deletedDataset = _datasets[datasetIndex];
+  Future<void> _deleteDataset(KnowledgeDataset dataset) async {
+    try {
+      if (dataset.source == 'Knowledge Base') {
+        setState(() {
+          _datasets.removeWhere((d) => d.id == dataset.id);
+          _filteredDatasets = _datasets.toList();
+        });
+
+        final success = await KnowledgeService.deleteKnowledge(dataset.id);
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('KB is deleted successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } else {
+        setState(() {
+          _datasets.removeWhere((d) => d.id == dataset.id);
+          _filteredDatasets = _datasets.toList();
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Dataset removed'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
       setState(() {
-        _datasets.removeAt(datasetIndex);
-        _filterDatasets();
+        if (!_datasets.any((d) => d.id == dataset.id)) {
+          _datasets.add(dataset);
+          _filteredDatasets = _datasets.toList();
+        }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.purple[400],
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          content: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween, // Đặt các phần tử ở đầu và cuối
-            children: [
-              Flexible(
-                child: Text(
-                  'Dataset "${deletedDataset.name}" deleted',
-                  style: const TextStyle(color: Colors.white),
-                  overflow: TextOverflow.ellipsis, // Xử lý text dài
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _datasets.insert(datasetIndex, deletedDataset);
-                    _filterDatasets();
-                  });
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                },
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  'UNDO',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete dataset: $e'),
+            backgroundColor: Colors.red,
           ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -189,7 +237,7 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
       context: context,
       builder: (context) => AddDatasetDialog(
         onAdd: _addDataset,
-        source: source, // Pass the source to the dialog
+        source: source,
       ),
     );
   }
@@ -204,8 +252,6 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
       builder: (context) => ImportOptionsBottomSheet(
         onImportSelected: (source) {
           Navigator.pop(context);
-          // Here you would handle the import based on the source
-          // For now, we'll just show a dialog to add a dataset
           _showAddDatasetDialog(source);
         },
       ),
@@ -222,69 +268,71 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Center(
-          child: const Text(
-            'My Knowledge',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+        centerTitle: true,
+        title: const Text(
+          'My Knowledge',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Center(
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, color: Colors.grey, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) => _filterDatasets(),
-                        decoration: InputDecoration(
-                          hintText: 'Search',
-                          hintStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Container(
+                      width: MediaQuery.of(context).size.width * 0.9,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 1),
                           ),
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.search,
+                              color: Colors.grey, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: (value) => _filterDatasets(),
+                              decoration: InputDecoration(
+                                hintText: 'Search',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: DatasetList(
+                    datasets: _filteredDatasets,
+                    onDelete: _deleteDataset,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Expanded(
-            child: DatasetList(
-              datasets: _filteredDatasets,
-              onDelete: _deleteDataset,
-            ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showImportOptions,
         icon: const Icon(Icons.add),
@@ -297,7 +345,7 @@ class _KnowledgeManagerScreenState extends State<KnowledgeManagerScreen> {
 // Dataset List Widget
 class DatasetList extends StatelessWidget {
   final List<KnowledgeDataset> datasets;
-  final Function(String) onDelete;
+  final Function(KnowledgeDataset) onDelete;
 
   const DatasetList({
     super.key,
@@ -314,20 +362,20 @@ class DatasetList extends StatelessWidget {
           children: [
             Icon(Icons.smart_toy_rounded, size: 64, color: Colors.purple[400]),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'No datasets found',
               style: TextStyle(
-                fontSize: 14, // Kích thước chữ
-                fontWeight: FontWeight.bold, // Độ đậm vừa phải
-                color: Colors.black, // Màu chữ xám nhẹ
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Add a dataset to get started',
               style: TextStyle(
-                fontSize: 14, // Kích thước chữ
-                color: Colors.grey[700], // Màu chữ xám nhẹ
+                fontSize: 14,
+                color: Colors.grey[700],
               ),
             ),
           ],
@@ -344,7 +392,7 @@ class DatasetList extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: DatasetCard(
             dataset: dataset,
-            onDelete: () => onDelete(dataset.id),
+            onDelete: () => onDelete(dataset),
           ),
         );
       },
@@ -365,6 +413,8 @@ class DatasetCard extends StatelessWidget {
         return Icons.file_present;
       case 'website url':
         return Icons.language;
+      case 'knowledge base':
+        return Icons.article;
       default:
         return Icons.dataset;
     }
@@ -429,9 +479,10 @@ class DatasetCard extends StatelessWidget {
                       Text(
                         'Source: ${dataset.source}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withOpacity(0.7),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.7),
                             ),
                       ),
                     ],
@@ -473,17 +524,10 @@ class DatasetCard extends StatelessWidget {
                 Text(
                   'Added: ${dateFormat.format(dataset.dateAdded)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                ),
-                Text(
-                  'Size: ${dataset.size}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.6),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.6),
                       ),
                 ),
               ],
@@ -497,7 +541,7 @@ class DatasetCard extends StatelessWidget {
 
 // Add Dataset Dialog Widget
 class AddDatasetDialog extends StatefulWidget {
-  final Function(KnowledgeDataset) onAdd;
+  final Function(KnowledgeDataset, {String? description}) onAdd;
   final String source;
 
   const AddDatasetDialog({
@@ -513,10 +557,12 @@ class AddDatasetDialog extends StatefulWidget {
 class _AddDatasetDialogState extends State<AddDatasetDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -527,9 +573,13 @@ class _AddDatasetDialogState extends State<AddDatasetDialog> {
         name: _nameController.text.trim(),
         source: widget.source,
         dateAdded: DateTime.now(),
-        size: '0 KB', // This would be calculated based on actual data
       );
-      widget.onAdd(dataset);
+      widget.onAdd(
+        dataset,
+        description: widget.source == 'Knowledge Base'
+            ? _descriptionController.text.trim()
+            : null,
+      );
       Navigator.pop(context);
     }
   }
@@ -546,18 +596,36 @@ class _AddDatasetDialogState extends State<AddDatasetDialog> {
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: 'Dataset Name',
-                hintText: 'Enter a name for this dataset',
+                labelText: 'Knowledge Name',
+                hintText: 'Enter knowledge name',
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a name';
+                  return 'Please enter knowledge name';
                 }
                 return null;
               },
             ),
             const SizedBox(height: 16),
+            if (widget.source == 'Knowledge Base') ...[
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Enter description',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter description';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
             Text(
               'Source: ${widget.source}',
               style: Theme.of(context).textTheme.bodyMedium,
@@ -570,7 +638,10 @@ class _AddDatasetDialogState extends State<AddDatasetDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('CANCEL'),
         ),
-        ElevatedButton(onPressed: _submitForm, child: const Text('ADD')),
+        ElevatedButton(
+          onPressed: _submitForm,
+          child: const Text('ADD'),
+        ),
       ],
     );
   }
@@ -598,6 +669,13 @@ class ImportOptionsBottomSheet extends StatelessWidget {
             ),
           ),
           const Divider(),
+          _buildImportOption(
+            context,
+            'Knowledge Base',
+            Icons.article,
+            'Create new knowledge base',
+            Colors.blue,
+          ),
           _buildImportOption(
             context,
             'File Upload',
@@ -641,7 +719,7 @@ class ImportOptionsBottomSheet extends StatelessWidget {
   Widget _buildImportOption(
     BuildContext context,
     String title,
-    dynamic iconOrAsset, // Change IconData to dynamic
+    dynamic iconOrAsset,
     String description,
     Color color,
   ) {
@@ -653,7 +731,6 @@ class ImportOptionsBottomSheet extends StatelessWidget {
           children: [
             CircleAvatar(
               backgroundColor: color.withOpacity(0.2),
-              // Change this part to handle both IconData and String (image path)
               child: iconOrAsset is IconData
                   ? Icon(iconOrAsset, color: color)
                   : Image.asset(iconOrAsset, width: 30, height: 30),
@@ -665,14 +742,15 @@ class ImportOptionsBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  Text(description, style: TextStyle(fontSize: 12)),
+                  Text(description, style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
           ],
         ),
       ),
