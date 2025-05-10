@@ -24,6 +24,7 @@ class ChatAvailableBotScreen extends StatefulWidget {
 
 class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   bool _showMediaIcons = false;
+  bool _isWaitingForResponse = false;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   int _selectedModelIndex = 0;
@@ -242,6 +243,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           'sender': 'user',
           'message': userMessage,
         });
+        _isWaitingForResponse = true;
       });
 
       final formattedMessages = _chatMessages.map((msg) {
@@ -253,22 +255,23 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
         );
       }).toList();
 
-      // print('Formatted Messages: $formattedMessages');
-
       AiChatService.chatWithBot(
         messages: formattedMessages,
         modelId: _selectedModelId,
         modelName: _selectedModelLabel,
       ).then((response) {
-        // print('API response: ${response.message}');
         setState(() {
           _chatMessages.add({
             'sender': 'ai',
             'message': response.message,
           });
           _remainingTokens = response.remainingUsage;
+          _isWaitingForResponse = false;
         });
       }).catchError((error) {
+        setState(() {
+          _isWaitingForResponse = false;
+        });
         print('Error chatting with bot: $error');
       });
 
@@ -303,6 +306,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
       _selectedModelId = aiModes[index]['value'];
       _selectedModelDescription = _getModelDescription(_selectedModelLabel);
       _selectedModelCompany = aiModes[index]['company'];
+      // Clear chat history
+      _chatMessages.clear();
     });
   }
 
@@ -853,31 +858,135 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _chatMessages.length,
+              itemCount: _chatMessages.length + (_isWaitingForResponse ? 1 : 0),
               itemBuilder: (context, index) {
+                // Show typing indicator at the end if waiting for response
+                if (_isWaitingForResponse && index == _chatMessages.length) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 60,
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildTypingDot(0),
+                            _buildTypingDot(1),
+                            _buildTypingDot(2),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
                 final chat = _chatMessages[index];
-                return Row(
-                  mainAxisAlignment: chat['sender'] == 'user'
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 250,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: chat['sender'] == 'user'
-                            ? Colors.blue[100]
-                            : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
+                final isUser = chat['sender'] == 'user';
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: isUser
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isUser) ...[
+                        Container(
+                          width: 32,
+                          height: 32,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              _selectedModelImage,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ],
+                      Flexible(
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isUser
+                                ? const Color(0xFF8A70FF)
+                                : Colors.grey[100],
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(20),
+                              topRight: const Radius.circular(20),
+                              bottomLeft: Radius.circular(isUser ? 20 : 4),
+                              bottomRight: Radius.circular(isUser ? 4 : 20),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!isUser) ...[
+                                Text(
+                                  _selectedModelLabel,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                              ],
+                              Text(
+                                chat['message']!,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: isUser ? Colors.white : Colors.black87,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      child: Text(
-                        chat['message']!,
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.black87),
-                      ),
-                    ),
-                  ],
+                      if (isUser) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -1003,13 +1112,10 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                         // Nút Làm mới
                         GestureDetector(
                           onTap: () async {
-                            // final response = await AiChatService.sendMessage(
-                            //   content: 'Hello AI!',
-                            //   modelId: 'claude-3-haiku-20240307',
-                            //   modelName: 'Claude 3 Haiku',
-                            // );
-
-                            // print(response); // xử lý response nếu cần
+                            // Clear chat history
+                            setState(() {
+                              _chatMessages.clear();
+                            });
                           },
                           child: Container(
                             padding: const EdgeInsets.all(6),
@@ -1128,6 +1234,29 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Add this method for typing animation
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600),
+      curve:
+          Interval(index * 0.2, (index * 0.2) + 0.5, curve: Curves.easeInOut),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, -4 * value),
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
     );
   }
 }
