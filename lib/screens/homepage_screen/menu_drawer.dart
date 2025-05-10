@@ -112,7 +112,7 @@ class MenuDrawer extends StatelessWidget {
             _buildMenuItem(
               context,
               index: 4,
-              title: 'Email Composer',
+              title: 'AI Email Assistant',
               leading: Container(
                 width: 50,
                 height: 50,

@@ -20,9 +20,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
     });
 
     try {
-      print('Starting subscription process...');
       final result = await SubscriptionService.subscribe();
-      print('Subscription result: $result');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -34,7 +32,6 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      print('Error during subscription: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

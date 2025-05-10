@@ -709,9 +709,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 color: _isPro ? Colors.black87 : Colors.white,
               ),
               label: Text(
-                _isPro ? 'Pro' : 'Upgrade',
+                _subscriptionType.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: _isPro ? Colors.black87 : Colors.white,
                 ),

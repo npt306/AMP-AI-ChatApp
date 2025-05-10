@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../services/email_service.dart';
 import 'ai_action_buttons.dart';
-import 'ai_service.dart';
 
 class EmailComposeScreen extends StatefulWidget {
   const EmailComposeScreen({super.key});
@@ -10,55 +11,183 @@ class EmailComposeScreen extends StatefulWidget {
 }
 
 class _EmailComposeScreenState extends State<EmailComposeScreen> {
-  final TextEditingController _toController = TextEditingController();
-  final TextEditingController _ccController = TextEditingController();
-  final TextEditingController _fromController = TextEditingController();
+  final TextEditingController _senderController = TextEditingController();
   final TextEditingController _subjectController = TextEditingController();
-  final TextEditingController _bodyController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _receiverController = TextEditingController();
+  final TextEditingController _suggestedResponseController =
+      TextEditingController();
 
-  bool _showCc = false;
-  final FocusNode _bodyFocusNode = FocusNode();
+  bool _isGenerating = false;
+  bool _showSuggestions = false;
+  List<String> _suggestions = [];
 
   @override
   void initState() {
     super.initState();
-    _fromController.text = 'myemail@example.com';
+    _contentController.addListener(_onContentChanged);
   }
 
   @override
   void dispose() {
-    _toController.dispose();
-    _ccController.dispose();
-    _fromController.dispose();
+    _contentController.removeListener(_onContentChanged);
+    _senderController.dispose();
     _subjectController.dispose();
-    _bodyController.dispose();
-    _bodyFocusNode.dispose();
+    _contentController.dispose();
+    _receiverController.dispose();
+    _suggestedResponseController.dispose();
     super.dispose();
   }
 
-  void _handleAIAction(String actionType) async {
-    final String generatedText = await AIService.generateText(actionType);
+  void _onContentChanged() {
+    // Extract receiver email from content
+    final content = _contentController.text;
+    if (content.isNotEmpty) {
+      // Look for common email patterns in the content
+      final emailRegex = RegExp(r'[\w\.-]+@[\w\.-]+\.\w+');
+      final matches = emailRegex.allMatches(content);
 
-    // Insert text at current cursor position or append to end
-    final int cursorPos = _bodyController.selection.baseOffset;
-    final String currentText = _bodyController.text;
+      // Find the first email that's not the sender's email
+      for (var match in matches) {
+        final email = match.group(0);
+        if (email != null && email != _senderController.text) {
+          _receiverController.text = email;
+          break;
+        }
+      }
+    }
+  }
 
-    if (cursorPos >= 0) {
-      String newText = currentText.substring(0, cursorPos) +
-          generatedText +
-          currentText.substring(cursorPos);
-      _bodyController.text = newText;
-      // Place cursor at end of inserted text
-      _bodyController.selection = TextSelection.fromPosition(
-        TextPosition(offset: cursorPos + generatedText.length),
+  Future<void> _handleAIAction(String actionType) async {
+    if (_contentController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter the original email content first'),
+          backgroundColor: Colors.red,
+        ),
       );
-    } else {
-      // If no cursor position, append to end
-      _bodyController.text = currentText + generatedText;
+      return;
     }
 
-    // Focus back on the body text field
-    _bodyFocusNode.requestFocus();
+    setState(() {
+      _isGenerating = true;
+      _showSuggestions = false;
+    });
+
+    try {
+      // Detect language from content
+      final language = _detectLanguage(_contentController.text);
+
+      final metadata = {
+        'context': [],
+        'subject': _subjectController.text,
+        'sender': _senderController.text,
+        'receiver': _receiverController.text,
+        'style': {
+          'length': 'medium',
+          'formality': 'neutral',
+          'tone': 'professional'
+        },
+        'language': language
+      };
+
+      // First get reply ideas
+      final suggestions = await EmailService.getReplyIdeas(
+        email: _contentController.text,
+        action: 'Suggest 3 ideas for this email',
+        metadata: metadata,
+      );
+
+      setState(() {
+        _suggestions = suggestions;
+        _showSuggestions = true;
+      });
+
+      // Then generate the full response
+      Map<String, dynamic> response;
+      switch (actionType) {
+        case 'thanks':
+          response = await EmailService.generateThankYouEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        case 'sorry':
+          response = await EmailService.generateApologyEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        case 'yes':
+          response = await EmailService.generateConfirmationEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        case 'no':
+          response = await EmailService.generateRejectionEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        case 'follow up':
+          response = await EmailService.generateFollowUpEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        case 'more info':
+          response = await EmailService.generateInfoRequestEmail(
+            email: _contentController.text,
+            metadata: metadata,
+          );
+          break;
+        default:
+          throw Exception('Unknown action type');
+      }
+
+      setState(() {
+        _suggestedResponseController.text = response['email'];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Email generated successfully. Remaining usage: ${response['remainingUsage']}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating email: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isGenerating = false;
+      });
+    }
+  }
+
+  String _detectLanguage(String text) {
+    // Simple language detection based on common patterns
+    if (text.contains(RegExp(
+        r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]'))) {
+      return 'vietnamese';
+    }
+    return 'english';
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied to clipboard'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -73,152 +202,280 @@ class _EmailComposeScreenState extends State<EmailComposeScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Email Composer',
+          'AI Email Assistant',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        leadingWidth: 70,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.send, color: Colors.blue),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Email sent')),
-              );
-            },
-          ),
-        ],
       ),
-      body: GestureDetector(
-        onTap: () {
-          // Dismiss keyboard when tapping outside of text fields
-          FocusScope.of(context).unfocus();
-        },
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Email fields
-                    _buildDivider(),
-                    _buildTextField('To:', _toController, 'Recipient email'),
-
-                    // From field
-                    _buildDivider(),
-                    Row(
+      body: SafeArea(
+        child: Container(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  // Original Email Section
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFE9ECEF),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(width: 16),
                         const Text(
-                          'From:',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _fromController,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              fillColor: Colors.white,
-                              filled: true,
-                            ),
+                          'Original Email',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF495057),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.add, color: Colors.blue),
-                          onPressed: () {
-                            setState(() {
-                              _showCc = !_showCc;
-                            });
-                          },
+                        const SizedBox(height: 12),
+                        _buildTextField(
+                          'Sender',
+                          _senderController,
+                          'Enter the email address of the person who sent you this email',
+                          isRequired: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          'Receiver',
+                          _receiverController,
+                          'Enter the email address you want to send the response to',
+                          isRequired: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          'Subject',
+                          _subjectController,
+                          'Enter email subject',
+                          isRequired: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          'Content',
+                          _contentController,
+                          'Paste the original email content here',
+                          minLines: 2,
+                          maxLines: 10,
+                          isRequired: true,
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // CC field (conditional)
-                    if (_showCc) ...[
-                      _buildDivider(),
-                      _buildTextField('CC:', _ccController, 'CC email'),
-                    ],
+                  // AI Actions Section
+                  _isGenerating
+                      ? const Center(child: CircularProgressIndicator())
+                      : AIActionButtons(onActionSelected: _handleAIAction),
+                  const SizedBox(height: 16),
 
-                    // Subject field
-                    _buildDivider(),
-                    _buildTextField('Subject:', _subjectController, 'Subject'),
-                    _buildDivider(),
-
-                    // AI Actions
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: AIActionButtons(onActionSelected: _handleAIAction),
-                    ),
-                    _buildDivider(),
-
-                    // Email body
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        controller: _bodyController,
-                        focusNode: _bodyFocusNode,
-                        decoration: const InputDecoration(
-                          hintText: 'Type something...',
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          fillColor: Colors.white,
-                          filled: true,
+                  // Suggestions Section
+                  if (_showSuggestions) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
                         ),
-                        maxLines: null,
-                        minLines: 10,
-                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Quick Suggestions',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF495057),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ..._suggestions.map((suggestion) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFE9ECEF),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    title: Text(
+                                      suggestion,
+                                      style: const TextStyle(
+                                        color: Color(0xFF495057),
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(
+                                        Icons.copy_rounded,
+                                        color: Color(0xFF6C757D),
+                                        size: 20,
+                                      ),
+                                      onPressed: () =>
+                                          _copyToClipboard(suggestion),
+                                    ),
+                                  ),
+                                ),
+                              )),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 16),
                   ],
-                ),
+
+                  // Generated Response Section
+                  if (_suggestedResponseController.text.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFE9ECEF),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Generated Response',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF495057),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.copy_rounded,
+                                  color: Color(0xFF6C757D),
+                                  size: 20,
+                                ),
+                                onPressed: () => _copyToClipboard(
+                                    _suggestedResponseController.text),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE9ECEF),
+                                width: 1,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: _suggestedResponseController,
+                              decoration: const InputDecoration(
+                                contentPadding: EdgeInsets.all(12),
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(color: Color(0xFFADB5BD)),
+                              ),
+                              maxLines: null,
+                              minLines: 5,
+                              style: const TextStyle(
+                                color: Color(0xFF495057),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildTextField(
-      String label, TextEditingController controller, String hint) {
-    return Row(
+    String label,
+    TextEditingController controller,
+    String hint, {
+    int maxLines = 1,
+    int minLines = 1,
+    bool isRequired = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(width: 16),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 16),
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF495057),
+              ),
+            ),
+            if (isRequired)
+              const Text(
+                ' *',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.red,
+                ),
+              ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFE9ECEF),
+              width: 1,
+            ),
+          ),
           child: TextField(
             controller: controller,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: const TextStyle(color: Colors.grey),
+              hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
               border: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              fillColor: Colors.white,
-              filled: true,
+              contentPadding: const EdgeInsets.all(12),
+            ),
+            maxLines: maxLines,
+            minLines: minLines,
+            style: const TextStyle(
+              color: Color(0xFF495057),
+              fontSize: 14,
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDivider() {
-    return const Divider(
-      height: 1,
-      thickness: 0.5,
-      indent: 16,
-      endIndent: 16,
     );
   }
 }
