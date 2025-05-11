@@ -3,6 +3,7 @@ import '../services/bot_service.dart';
 import '../models/bot.dart';
 import 'my_bot_screen.dart';
 import '../services/knowledge_service.dart';
+import './ask_bot_screen.dart';
 
 class ManageBotScreen extends StatefulWidget {
   final String botId;
@@ -13,6 +14,8 @@ class ManageBotScreen extends StatefulWidget {
 }
 
 class _ManageBotScreenState extends State<ManageBotScreen> {
+  late final String botId;
+
   String selectedModel = 'GPT-4 mini';
 
   final _nameController = TextEditingController();
@@ -25,13 +28,14 @@ class _ManageBotScreenState extends State<ManageBotScreen> {
   @override
   void initState() {
     super.initState();
+    botId = widget.botId;
     _loadBot();
   }
 
   Future<void> _loadBot() async {
     setState(() => _isLoading = true);
     try {
-      final bot = await BotService.getBot(widget.botId);
+      final bot = await BotService.getBot(botId);
       setState(() {
         _bot = bot;
         _nameController.text = bot.assistantName;
@@ -49,7 +53,7 @@ class _ManageBotScreenState extends State<ManageBotScreen> {
     setState(() => _isLoading = true);
     try {
       await BotService.updateBot(
-        id: widget.botId,
+        id: botId,
         assistantName: _nameController.text,
         instructions: _instructionsController.text,
         description: _descriptionController.text,
@@ -228,7 +232,7 @@ class _ManageBotScreenState extends State<ManageBotScreen> {
       setState(() => _isLoading = true);
       try {
         final success = await BotService.importKnowledgeToAssistant(
-          assistantId: widget.botId,
+          assistantId: botId,
           knowledgeId: selectedKnowledge.id,
         );
         setState(() => _isLoading = false);
@@ -271,6 +275,27 @@ class _ManageBotScreenState extends State<ManageBotScreen> {
             ),
           ),
           centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.remove_red_eye,
+                  color: Colors.purple, size: 28),
+              tooltip: 'Preview',
+              onPressed: () {
+                if (_bot != null) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ChatCustomBotScreen(
+                        assistantName: _bot!.assistantName,
+                        description: _bot!.description ?? '',
+                        botId: _bot!.id,
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
         body: Center(
           child: SingleChildScrollView(
@@ -548,8 +573,7 @@ class _ManageBotScreenState extends State<ManageBotScreen> {
                             if (_bot == null) return;
                             setState(() => _isLoading = true);
                             try {
-                              final result =
-                                  await BotService.deleteBot(widget.botId);
+                              final result = await BotService.deleteBot(botId);
                               setState(() => _isLoading = false);
                               if (result && mounted) {
                                 Navigator.of(context).pushAndRemoveUntil(

@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../config/api_config.dart';
 import '../models/bot.dart';
 import 'api_client.dart';
+import 'package:http/http.dart' as http;
 
 class BotService {
   static final ApiClient _apiClient = ApiClient();
@@ -194,6 +195,73 @@ class BotService {
       }
     } catch (e) {
       print('Error importing knowledge: $e'); // Debug log
+      rethrow;
+    }
+  }
+
+  /// Ask assistant
+  static Future<String> askAssistant({
+    required String assistantId,
+    required String message,
+  }) async {
+    String additionalInstruction = '';
+    final endpoint = '/kb-core/v1/ai-assistant/$assistantId/ask';
+    final url = '${ApiConfig.knowledgeBaseUrl}$endpoint';
+
+    final body = jsonEncode({
+      "message": message,
+      "openAiThreadId": "thread_ewcmtpDJwtDPcCeoDjtydmcW",
+      "additionalInstruction": additionalInstruction,
+    });
+
+    print('ASK ASSISTANT - REQUEST');
+    print('URL: $url');
+    print('Body: $body');
+
+    try {
+      final response = await _apiClient.post(
+        url,
+        body: body,
+      );
+
+      print('ASK ASSISTANT - RESPONSE STATUS: ${response.statusCode}');
+      print('ASK ASSISTANT - RAW RESPONSE: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final lines = const LineSplitter()
+            .convert(response.body)
+            .where((line) => line.trim().isNotEmpty)
+            .toList();
+
+        // Lấy tất cả content từ các dòng data:
+        List<String> contents = [];
+        for (final line in lines) {
+          if (line.startsWith('data:')) {
+            final dataStr = line.substring(5).trim();
+            if (dataStr.isNotEmpty) {
+              try {
+                final jsonLine = jsonDecode(dataStr);
+                if (jsonLine is Map &&
+                    (jsonLine['content']?.toString().trim().isNotEmpty ??
+                        false)) {
+                  contents.add(jsonLine['content']);
+                }
+              } catch (e) {
+                // ignore parse error
+              }
+            }
+          }
+        }
+        // Ghép lại thành 1 câu trả lời hoàn chỉnh
+        final answer = contents.join('');
+        print('ASK ASSISTANT - FINAL CONTENT: $answer');
+        return answer;
+      } else {
+        throw Exception(
+            'Failed to ask assistant: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      print('ASK ASSISTANT - ERROR: $e');
       rethrow;
     }
   }

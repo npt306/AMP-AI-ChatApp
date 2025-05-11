@@ -164,7 +164,7 @@ class MenuDrawer extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.black87,
                   fontSize: 16,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ],
