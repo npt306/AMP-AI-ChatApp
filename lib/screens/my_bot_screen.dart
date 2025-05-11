@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'create_bot_screen.dart';
-import 'chat_custom_bot_screen.dart';
-import 'chat_available_bot_screen.dart';
+import 'ask_bot_screen.dart';
 import '../services/bot_service.dart';
 import '../models/bot.dart';
 import 'update_bot_screen.dart';
@@ -290,7 +289,11 @@ class _MyBotScreenState extends State<MyBotScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ChatCustomBotScreen(),
+            builder: (context) => ChatCustomBotScreen(
+              assistantName: bot['name'] ?? '',
+              description: '',
+              botId: '',
+            ),
           ),
         );
       },
