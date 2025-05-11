@@ -91,7 +91,7 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
               ? _descriptionController.text
               : null,
           category: _selectedCategory,
-          isPublic: _isPublic,
+          isPublic: false,
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -320,37 +320,6 @@ class _CreatePromptDialogState extends State<CreatePromptDialog> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-
-                // Visibility toggle
-                Row(
-                  children: [
-                    const Text(
-                      'Make public',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const Spacer(),
-                    Transform.scale(
-                      scale: 0.8, // Thu nhỏ switch một chút để cân đối hơn
-                      child: Switch(
-                        value: _isPublic,
-                        onChanged: (value) {
-                          setState(() {
-                            _isPublic = value;
-                          });
-                        },
-                        activeColor: Colors.white,
-                        activeTrackColor: const Color(0xFF4285F4),
-                        inactiveThumbColor: Colors.white,
-                        inactiveTrackColor: const Color(0xFFCFD8DC),
-                      ),
-                    ),
-                  ],
-                ),
-
                 const SizedBox(height: 10),
 
                 // Prompt field

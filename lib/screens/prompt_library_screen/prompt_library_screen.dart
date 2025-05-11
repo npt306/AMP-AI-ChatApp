@@ -60,9 +60,9 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
         query: _searchController.text.isEmpty ? null : _searchController.text,
         offset: _offset,
         limit: _limit,
-        isPublic: false,
+        isPublic: _isPublicTab,
         category: _selectedCategory,
-        isFavorite: _isFavoriteSelected ? true : false, // Thêm bộ lọc yêu thích
+        isFavorite: _isPublicTab ? (_isFavoriteSelected ? true : null) : null,
       );
 
       setState(() {
@@ -242,6 +242,7 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                         _isPublicTab,
                         () => setState(() {
                           _isPublicTab = true;
+                          _prompts = []; // Clear prompts before loading
                           _loadPrompts();
                         }),
                       ),
@@ -253,6 +254,7 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                         !_isPublicTab,
                         () => setState(() {
                           _isPublicTab = false;
+                          _prompts = []; // Clear prompts before loading
                           _loadPrompts();
                         }),
                       ),
