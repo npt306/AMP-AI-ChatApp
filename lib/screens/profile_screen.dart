@@ -129,9 +129,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (accessToken != null && refreshToken != null) {
           await AuthService.logout();
         }
-        
+
         await SecureStorageService.clearAuthData();
-        
+
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
