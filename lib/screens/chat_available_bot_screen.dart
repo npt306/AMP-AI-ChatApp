@@ -8,6 +8,7 @@ import '../models/prompt.dart' as prompt;
 import '../services/bot_service.dart';
 import '../models/bot.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../services/token_manager.dart';
 
 class ChatAvailableBotScreen extends StatefulWidget {
   final String initialMessage;
@@ -105,7 +106,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     super.initState();
     print('ChatAvailableBotScreen initState called');
     _selectedModelIndex = widget.selectedModelIndex;
-    _remainingTokens = widget.remainingTokens;
+    _remainingTokens = TokenManager.instance.remainingTokens;
     _isCustomBot = widget.isCustomBot;
     _selectedCustomBotId = widget.customBotId;
     _selectedCustomBotName = widget.customBotName;
@@ -270,71 +271,47 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   }
 
   Future<void> _sendMessage() async {
-    final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (_messageController.text.trim().isEmpty) return;
+
+    final message = _messageController.text;
+    _messageController.clear();
 
     setState(() {
-      _isWaitingForResponse = true;
       _chatMessages.add({
         'sender': 'user',
         'message': message,
+        'timestamp': DateTime.now().toIso8601String(),
       });
-      _messageController.clear();
     });
 
     try {
-      if (widget.isCustomBot) {
-        final response = await AiChatService.chatWithBot(
-          messages: [
-            {
-              'role': 'user',
-              'content': message,
-              'files': [],
-              'assistant': {
-                'id': widget.customBotId,
-                'model': 'dify',
-                'name': widget.customBotName ?? 'Custom Bot',
-              },
-            }
-          ],
-          modelId: widget.customBotId ?? '',
-          modelName: widget.customBotName ?? 'Custom Bot',
-        );
+      final response = await AiChatService.sendMessage(
+        content: message,
+        modelId: widget.modelId ?? 'gpt-4o-mini',
+        modelName: 'AI Assistant',
+      );
 
-        setState(() {
-          _chatMessages.add({
-            'sender': 'ai',
-            'message': response.message,
-          });
-          _remainingTokens = response.remainingUsage;
+      setState(() {
+        _chatMessages.add({
+          'sender': 'ai',
+          'message': response.message,
+          'timestamp': DateTime.now().toIso8601String(),
         });
-      } else {
-        final response = await AiChatService.sendMessage(
-          content: message,
-          modelId: _selectedModelId,
-          modelName: _selectedModelLabel,
-        );
+      });
 
-        setState(() {
-          _chatMessages.add({
-            'sender': 'ai',
-            'message': response.message,
-          });
-          _remainingTokens = response.remainingUsage;
-        });
-      }
+      // Update tokens after successful message
+      TokenManager.instance.updateTokensAfterMessage(response.remainingUsage);
+      setState(() {
+        _remainingTokens = TokenManager.instance.remainingTokens;
+      });
     } catch (e) {
       print('Error sending message: $e');
       setState(() {
         _chatMessages.add({
           'sender': 'ai',
-          'message':
-              'Sorry, there was an error processing your message. Please try again.',
+          'message': 'Sorry, I encountered an error. Please try again.',
+          'timestamp': DateTime.now().toIso8601String(),
         });
-      });
-    } finally {
-      setState(() {
-        _isWaitingForResponse = false;
       });
     }
   }

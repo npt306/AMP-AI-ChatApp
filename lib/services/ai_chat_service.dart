@@ -158,21 +158,16 @@ class AiChatService {
         queryParameters: queryParams,
       );
 
-      print('API Response Status: ${response.statusCode}');
-      print('API Response Headers: ${response.headers}');
-      print('API Response Body: ${response.body}');
+      
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
-        print('Parsed JSON Response: $jsonResponse');
         return ConversationResponse.fromJson(jsonResponse);
       } else {
-        print('Error Response: ${response.reasonPhrase}');
         throw Exception(
             'Failed to get conversation history: ${response.statusCode} ${response.reasonPhrase}');
       }
     } catch (e) {
-      print('Error getting conversation history: $e');
       rethrow;
     }
   }

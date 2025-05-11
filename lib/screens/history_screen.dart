@@ -123,11 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       for (var historyItem in history.items) {
         // Handle query (user message)
         if (historyItem.query != null && historyItem.query!.trim().isNotEmpty) {
-          // Remove "Tiếp tục cuộc trò chuyện: " prefix if exists
           String query = historyItem.query!;
-          if (query.startsWith('Tiếp tục cuộc trò chuyện: ')) {
-            query = query.substring('Tiếp tục cuộc trò chuyện: '.length);
-          }
 
           // Skip if this query is the same as the last one or matches the title
           if (query == lastQuery || query == item.title) continue;
@@ -372,13 +368,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Text(
                         item.title,
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),

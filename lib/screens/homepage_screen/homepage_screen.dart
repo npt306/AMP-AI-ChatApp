@@ -106,6 +106,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
     _fetchCustomBots();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh tokens when returning to this screen
+    _fetchTokenUsage();
+  }
+
   Future<void> _checkSubscription() async {
     try {
       final usage = await SubscriptionService.getUsage();
@@ -148,7 +155,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
     try {
       final usage = await TokenService.getTokenUsage();
       setState(() {
-        _remainingTokens = usage.availableTokens;
+        _remainingTokens = usage.remainingTokens;
       });
     } catch (e) {
       print('Error fetching token usage: $e');

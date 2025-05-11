@@ -1,31 +1,27 @@
 class TokenUsage {
-  final int availableTokens;
   final int totalTokens;
-  final bool unlimited;
-  final DateTime date;
+  final int usedTokens;
+  final int remainingTokens;
 
   TokenUsage({
-    required this.availableTokens,
     required this.totalTokens,
-    required this.unlimited,
-    required this.date,
+    required this.usedTokens,
+    required this.remainingTokens,
   });
 
   factory TokenUsage.fromJson(Map<String, dynamic> json) {
     return TokenUsage(
-      availableTokens: json['availableTokens'],
-      totalTokens: json['totalTokens'],
-      unlimited: json['unlimited'],
-      date: DateTime.parse(json['date']),
+      totalTokens: json['total_tokens'] ?? 0,
+      usedTokens: json['used_tokens'] ?? 0,
+      remainingTokens: json['remaining_tokens'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'availableTokens': availableTokens,
       'totalTokens': totalTokens,
-      'unlimited': unlimited,
-      'date': date.toIso8601String(),
+      'usedTokens': usedTokens,
+      'remainingTokens': remainingTokens,
     };
   }
 }
