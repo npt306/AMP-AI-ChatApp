@@ -406,6 +406,10 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
       _selectedModelCompany = aiModes[index]['company'];
       // Clear chat history
       _chatMessages.clear();
+      // Reset custom bot state
+      _isCustomBot = false;
+      _selectedCustomBotId = null;
+      _selectedCustomBotName = null;
     });
   }
 
@@ -503,18 +507,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                           ),
                           child: InkWell(
                             onTap: () {
-                              setState(() {
-                                _selectedModelIndex = aiModes.indexOf(mode);
-                                _isCustomBot = false;
-                                _selectedCustomBotId = null;
-                                _selectedCustomBotName = null;
-                                _selectedModelLabel = mode['label'];
-                                _selectedModelImage = mode['image'];
-                                _selectedModelId = mode['value'];
-                                _selectedModelDescription =
-                                    _getModelDescription(_selectedModelLabel);
-                                _selectedModelCompany = mode['company'];
-                              });
+                              _updateModelSelection(aiModes.indexOf(mode));
                               Navigator.pop(context);
                             },
                             borderRadius: BorderRadius.circular(12),
@@ -629,6 +622,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                   _selectedModelDescription =
                                       'Custom AI Assistant';
                                   _selectedModelCompany = 'Custom';
+                                  // Clear chat history when switching to custom bot
+                                  _chatMessages.clear();
                                 });
                                 Navigator.pop(context);
                               },
@@ -946,9 +941,93 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                                 _selectedModelIndex,
                                             remainingTokens: _remainingTokens,
                                             isInChatScreen: true,
+                                            isCustomBot: _isCustomBot,
+                                            customBotId: _isCustomBot
+                                                ? _selectedCustomBotId
+                                                : null,
+                                            customBotName: _isCustomBot
+                                                ? _selectedCustomBotName
+                                                : null,
+                                            modelId: _isCustomBot
+                                                ? _selectedCustomBotId
+                                                : _selectedModelId,
                                           ),
                                         ),
-                                      );
+                                      ).then((result) {
+                                        if (result != null) {
+                                          // Add the prompt result to chat messages
+                                          setState(() {
+                                            _chatMessages.add({
+                                              'sender': 'user',
+                                              'message': result,
+                                            });
+                                            _isWaitingForResponse = true;
+                                          });
+
+                                          // Send the message to the appropriate API
+                                          if (_isCustomBot) {
+                                            AiChatService.chatWithBot(
+                                              messages: [
+                                                {
+                                                  'role': 'user',
+                                                  'content': result,
+                                                  'files': [],
+                                                  'assistant': {
+                                                    'id': _selectedCustomBotId,
+                                                    'model': 'dify',
+                                                    'name':
+                                                        _selectedCustomBotName ??
+                                                            'Custom Bot',
+                                                  },
+                                                }
+                                              ],
+                                              modelId:
+                                                  _selectedCustomBotId ?? '',
+                                              modelName:
+                                                  _selectedCustomBotName ??
+                                                      'Custom Bot',
+                                            ).then((response) {
+                                              setState(() {
+                                                _chatMessages.add({
+                                                  'sender': 'ai',
+                                                  'message': response.message,
+                                                });
+                                                _remainingTokens =
+                                                    response.remainingUsage;
+                                                _isWaitingForResponse = false;
+                                              });
+                                            }).catchError((error) {
+                                              setState(() {
+                                                _isWaitingForResponse = false;
+                                              });
+                                              print(
+                                                  'Error chatting with bot: $error');
+                                            });
+                                          } else {
+                                            AiChatService.sendMessage(
+                                              content: result,
+                                              modelId: _selectedModelId,
+                                              modelName: _selectedModelLabel,
+                                            ).then((response) {
+                                              setState(() {
+                                                _chatMessages.add({
+                                                  'sender': 'ai',
+                                                  'message': response.message,
+                                                });
+                                                _remainingTokens =
+                                                    response.remainingUsage;
+                                                _isWaitingForResponse = false;
+                                              });
+                                            }).catchError((error) {
+                                              setState(() {
+                                                _isWaitingForResponse = false;
+                                              });
+                                              print(
+                                                  'Error sending message: $error');
+                                            });
+                                          }
+                                        }
+                                      });
                                     },
                                   );
                                 },

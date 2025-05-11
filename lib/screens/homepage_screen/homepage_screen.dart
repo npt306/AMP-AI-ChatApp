@@ -728,6 +728,23 @@ class _HomepageScreenState extends State<HomepageScreen> {
                                                 _selectedModelIndex,
                                             remainingTokens: _remainingTokens,
                                             isInChatScreen: false,
+                                            isCustomBot: _isCustomBot,
+                                            customBotId: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .id
+                                                : null,
+                                            customBotName: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .assistantName
+                                                : null,
+                                            modelId: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .id
+                                                : aiModes[_selectedModelIndex]
+                                                    ['value'],
                                           ),
                                         ),
                                       );
@@ -769,6 +786,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
               isCustomBot: true,
               customBotId: bot.id,
               customBotName: bot.assistantName ?? 'Custom Bot',
+              modelId: bot.id, // Add modelId for custom bot
             ),
           ),
         );
@@ -1067,6 +1085,20 @@ class _HomepageScreenState extends State<HomepageScreen> {
                                         selectedModelIndex: _selectedModelIndex,
                                         remainingTokens: _remainingTokens,
                                         isInChatScreen: false,
+                                        isCustomBot: _isCustomBot,
+                                        customBotId: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .id
+                                            : null,
+                                        customBotName: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .assistantName
+                                            : null,
+                                        modelId: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .id
+                                            : aiModes[_selectedModelIndex]
+                                                ['value'],
                                       ),
                                     ),
                                   );

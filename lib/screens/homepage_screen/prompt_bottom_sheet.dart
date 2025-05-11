@@ -10,6 +10,10 @@ class PromptBottomSheet extends StatefulWidget {
     required this.selectedModelIndex,
     required this.remainingTokens,
     this.isInChatScreen = false,
+    this.isCustomBot = false,
+    this.customBotId,
+    this.customBotName,
+    this.modelId,
   });
   final String prompt;
   final String title;
@@ -17,6 +21,10 @@ class PromptBottomSheet extends StatefulWidget {
   final int selectedModelIndex;
   final int remainingTokens;
   final bool isInChatScreen;
+  final bool isCustomBot;
+  final String? customBotId;
+  final String? customBotName;
+  final String? modelId;
   @override
   State<PromptBottomSheet> createState() => _PromptBottomSheetState();
 }
@@ -61,6 +69,10 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
               initialMessage: message.trim(),
               selectedModelIndex: widget.selectedModelIndex,
               remainingTokens: widget.remainingTokens,
+              isCustomBot: widget.isCustomBot,
+              customBotId: widget.customBotId,
+              customBotName: widget.customBotName,
+              modelId: widget.modelId,
             ),
           ),
         );
