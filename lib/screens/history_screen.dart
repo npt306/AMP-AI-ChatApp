@@ -92,17 +92,116 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  void _navigateToChatScreen(ConversationItem item) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatAvailableBotScreen(
-          initialMessage: "Tiếp tục cuộc trò chuyện: ${item.title}",
-          selectedModelIndex: 0, // Sử dụng model mặc định
-          remainingTokens: 100, // Giá trị mặc định
+  void _navigateToChatScreen(ConversationItem item) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8A70FF)),
+          ),
         ),
-      ),
-    );
+      );
+
+      // Fetch conversation history
+      final history = await AiChatService.getConversationHistory(
+        conversationId: item.id,
+        limit: 100,
+      );
+
+      // Close loading indicator
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      // Process and format conversation history
+      final formattedHistory = <Map<String, dynamic>>[];
+      String? lastQuery;
+
+      // Process conversation history
+      for (var historyItem in history.items) {
+        // Handle query (user message)
+        if (historyItem.query != null && historyItem.query!.trim().isNotEmpty) {
+          // Remove "Tiếp tục cuộc trò chuyện: " prefix if exists
+          String query = historyItem.query!;
+          if (query.startsWith('Tiếp tục cuộc trò chuyện: ')) {
+            query = query.substring('Tiếp tục cuộc trò chuyện: '.length);
+          }
+
+          // Skip if this query is the same as the last one or matches the title
+          if (query == lastQuery || query == item.title) continue;
+          lastQuery = query;
+
+          formattedHistory.add({
+            'sender': 'user',
+            'message': query,
+            'timestamp': historyItem.createdAt,
+          });
+        }
+
+        // Handle answer (AI response)
+        if (historyItem.answer != null &&
+            historyItem.answer!.trim().isNotEmpty) {
+          formattedHistory.add({
+            'sender': 'ai',
+            'message': historyItem.answer!,
+            'timestamp': historyItem.createdAt,
+          });
+        }
+      }
+
+      print('Formatted history: $formattedHistory'); // Debug log
+
+      // Navigate to chat screen with history
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatAvailableBotScreen(
+            initialMessage: '',
+            selectedModelIndex: 0,
+            remainingTokens: 100,
+            conversationHistory: formattedHistory,
+            modelId:
+                history.items.isNotEmpty ? history.items.first.modelId : null,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error getting conversation history: $e');
+      // Close loading indicator if there's an error
+      if (mounted) {
+        Navigator.pop(context);
+        // Show error message with retry option
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Failed to load conversation: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _navigateToChatScreen(item);
+                },
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    color: Color(0xFF8A70FF),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   void _onSearchChanged() {
@@ -119,9 +218,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
   }
 
-  String _formatTimestamp(int timestamp) {
-    final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
-    return DateFormat('yyyy-MM-dd HH:mm:ss').format(date);
+  String _formatTimestamp(String isoDate) {
+    try {
+      final date = DateTime.parse(isoDate);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inMinutes < 60) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else {
+        return DateFormat('MMM d, y').format(date);
+      }
+    } catch (e) {
+      print('Error formatting date: $e');
+      return 'Invalid date';
+    }
   }
 
   @override
@@ -247,67 +362,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
           color: Colors.white,
           child: ListTile(
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            title: Text(
-              item.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Column(
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 2),
-                Row(children: [
-                  Expanded(
-                    child: Text(
-                      "ID: ${item.id}",
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 2),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: const Color(0xFF8A70FF),
-                      child: const Icon(
-                        Icons.smart_toy,
-                        size: 16,
-                        color: Colors.white,
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Assistant',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F3FF),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      formattedDate,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
+                      child: Text(
+                        formattedDate,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8A70FF),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ],
             ),
-            onTap: () => {_navigateToChatScreen(item)},
+            onTap: () => _navigateToChatScreen(item),
           ),
         ),
-        Divider(color: Colors.grey[200]),
+        Divider(color: Colors.grey[200], height: 1),
       ],
     );
   }

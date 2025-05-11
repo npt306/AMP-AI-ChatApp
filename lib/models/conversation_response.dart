@@ -13,12 +13,14 @@ class ConversationResponse {
 
   factory ConversationResponse.fromJson(Map<String, dynamic> json) {
     return ConversationResponse(
-      cursor: json['cursor'] ?? '',
+      cursor: json['cursor']?.toString() ?? '',
       hasMore: json['has_more'] ?? false,
       limit: json['limit'] ?? 20,
-      items: (json['items'] as List<dynamic>)
-          .map((item) => ConversationItem.fromJson(item))
-          .toList(),
+      items: (json['items'] as List<dynamic>?)
+              ?.map((item) =>
+                  ConversationItem.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 }
@@ -26,19 +28,34 @@ class ConversationResponse {
 class ConversationItem {
   final String id;
   final String title;
-  final int createdAt;
+  final String createdAt;
+  final String? role;
+  final String? content;
+  final String? modelId;
+  final String? answer;
+  final String? query;
 
   ConversationItem({
     required this.id,
     required this.title,
     required this.createdAt,
+    this.role,
+    this.content,
+    this.modelId,
+    this.answer,
+    this.query,
   });
 
   factory ConversationItem.fromJson(Map<String, dynamic> json) {
     return ConversationItem(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      createdAt: json['createdAt'] ?? 0,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+      role: json['role']?.toString(),
+      content: json['content']?.toString(),
+      modelId: json['modelId']?.toString(),
+      answer: json['answer']?.toString(),
+      query: json['query']?.toString(),
     );
   }
 }

@@ -104,62 +104,75 @@ class AiChatService {
     }
   }
 
-  static Future<ConversationResponse> getConversations(
-      {String? cursor, int limit = 20}) async {
-    // final endpoint = '/api/v1/ai-chat/conversations'
-    //     '?cursor=${cursor ?? ''}&limit=$limit';
-
-    // final headers = {
-    //   'x-jarvis-guid': '', // nhớ điền giá trị nếu cần
-    // };
-
-    // try {
-    //   final response = await _apiClient.get(
-    //     '${ApiConfig.jarvisBaseUrl}$endpoint',
-    //     headers: headers,
-    //   );
-
-    //   if (response.statusCode == 200) {
-    //     final jsonResponse = jsonDecode(response.body);
-    //     return ConversationResponse.fromJson(jsonResponse);
-    //   } else {
-    //     throw Exception(
-    //         'Failed to get conversations: ${response.statusCode} ${response.reasonPhrase}');
-    //   }
-    // } catch (e) {
-    //   // Bạn có thể log lỗi ra để dễ debug hơn
-    //   print('Error getting conversations: $e');
-    //   rethrow;
-    // }
+  static Future<ConversationResponse> getConversations({
+    String? cursor,
+    int limit = 20,
+    String? assistantId,
+  }) async {
+    final endpoint = '/api/v1/ai-chat/conversations';
+    final queryParams = {
+      if (cursor != null) 'cursor': cursor,
+      // Wrap limit in a list to match expected format
+      if (assistantId != null)
+        'assistantId': assistantId
+      else
+        'assistantId': 'gpt-4o-mini',
+      'assistantModel': 'dify',
+    };
 
     try {
-      // Đây là mock data
-      final Map<String, dynamic> mockResponse = {
-        "cursor": "f32a6751-9200-4357-9281-d22e5785434c",
-        "has_more": false,
-        "limit": 20,
-        "items": [
-          {
-            "title": "hi 1",
-            "id": "f32a6751-9200-4357-9281-347589347",
-            "createdAt": 1730480205
-          },
-          {
-            "title": "hi 2",
-            "id": "f32a6751-9200-4357-9281-d22e5785434c",
-            "createdAt": 1830480205
-          },
-          {
-            "title": "hi 3",
-            "id": "f32a6751-9200-4357-9281-d2asd34c",
-            "createdAt": 1930480205
-          },
-        ]
-      };
+      final response = await _apiClient.get(
+        '${ApiConfig.jarvisBaseUrl}$endpoint',
+        queryParameters: queryParams,
+      );
 
-      return ConversationResponse.fromJson(mockResponse);
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        return ConversationResponse.fromJson(jsonResponse);
+      } else {
+        throw Exception(
+            'Failed to get conversations: ${response.statusCode} ${response.reasonPhrase}');
+      }
     } catch (e) {
-      print('Error parsing mock data: $e');
+      rethrow;
+    }
+  }
+
+  static Future<ConversationResponse> getConversationHistory({
+    required String conversationId,
+    String? cursor,
+    int limit = 100,
+    String? assistantId,
+  }) async {
+    final endpoint = '/api/v1/ai-chat/conversations/$conversationId/messages';
+    final queryParams = {
+      if (cursor != null) 'cursor': cursor,
+      // 'limit': limit,
+      if (assistantId != null) 'assistantId': assistantId,
+      'assistantModel': 'dify',
+    };
+
+    try {
+      final response = await _apiClient.get(
+        '${ApiConfig.jarvisBaseUrl}$endpoint',
+        queryParameters: queryParams,
+      );
+
+      print('API Response Status: ${response.statusCode}');
+      print('API Response Headers: ${response.headers}');
+      print('API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        print('Parsed JSON Response: $jsonResponse');
+        return ConversationResponse.fromJson(jsonResponse);
+      } else {
+        print('Error Response: ${response.reasonPhrase}');
+        throw Exception(
+            'Failed to get conversation history: ${response.statusCode} ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      print('Error getting conversation history: $e');
       rethrow;
     }
   }

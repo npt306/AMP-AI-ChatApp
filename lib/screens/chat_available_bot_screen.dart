@@ -17,6 +17,7 @@ class ChatAvailableBotScreen extends StatefulWidget {
   final String? customBotId;
   final String? customBotName;
   final String? modelId;
+  final List<Map<String, dynamic>>? conversationHistory;
 
   const ChatAvailableBotScreen({
     Key? key,
@@ -27,6 +28,7 @@ class ChatAvailableBotScreen extends StatefulWidget {
     this.customBotId,
     this.customBotName,
     this.modelId,
+    this.conversationHistory,
   }) : super(key: key);
 
   @override
@@ -107,6 +109,11 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     _isCustomBot = widget.isCustomBot;
     _selectedCustomBotId = widget.customBotId;
     _selectedCustomBotName = widget.customBotName;
+
+    // Initialize chat messages with conversation history if available
+    if (widget.conversationHistory != null) {
+      _chatMessages = List.from(widget.conversationHistory!);
+    }
 
     if (widget.isCustomBot) {
       _selectedModelLabel = widget.customBotName ?? 'Custom Bot';
