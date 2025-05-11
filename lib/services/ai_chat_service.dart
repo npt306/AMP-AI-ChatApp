@@ -16,15 +16,31 @@ class AiChatService {
 
     final body = jsonEncode({
       'content': messages.last['content'],
+      'files': [],
       'metadata': {
         'conversation': {
-          'messages': messages,
+          'messages': messages
+              .map((msg) => {
+                    'role': msg['role'],
+                    'content': msg['content'],
+                    'files': msg['files'] ?? [],
+                    'assistant': {
+                      'model': 'knowledge-base',
+                      'name': modelName,
+                      'id': modelId,
+                    },
+                  })
+              .toList(),
         },
       },
-      "assistant": {"id": modelId, "model": "dify", "name": modelName}
+      'assistant': {
+        'model': 'knowledge-base',
+        'name': modelName,
+        'id': modelId,
+      },
     });
 
-    // print("Body: $body");
+    print("Request body: $body"); // Debug log
 
     try {
       final response = await _apiClient.post(
@@ -32,7 +48,8 @@ class AiChatService {
         body: body,
       );
 
-      // print("Response: ${response.body}");
+      print("Response status: ${response.statusCode}"); // Debug log
+      print("Response body: ${response.body}"); // Debug log
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
@@ -41,6 +58,7 @@ class AiChatService {
         throw Exception('Failed to chat with bot: ${response.reasonPhrase}');
       }
     } catch (e) {
+      print('Error in chatWithBot: $e'); // Debug log
       rethrow;
     }
   }

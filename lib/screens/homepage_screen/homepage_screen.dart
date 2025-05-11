@@ -13,6 +13,9 @@ import '../../services/prompt_service.dart';
 import '../../models/prompt.dart';
 import '../../services/token_service.dart';
 import '../../services/subscription_service.dart';
+import '../../services/bot_service.dart';
+import '../../models/bot.dart';
+import '../../services/ai_chat_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomepageScreen extends StatefulWidget {
@@ -25,12 +28,15 @@ class HomepageScreen extends StatefulWidget {
 class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
+  bool _isCustomBot = false;
   int _remainingTokens = 0;
   bool _isPro = false;
   String _subscriptionType = 'Basic';
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   String _currentQuery = '';
+  List<Bot> _customBots = [];
+  bool _isLoadingBots = false;
 
   // Add this field to track overlay state
   bool _isOverlayShowing = false;
@@ -94,6 +100,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
     // Check subscription
     _checkSubscription();
+
+    // Fetch custom bots
+    _fetchCustomBots();
   }
 
   Future<void> _checkSubscription() async {
@@ -172,6 +181,26 @@ class _HomepageScreenState extends State<HomepageScreen> {
     }
   }
 
+  // Add this method to fetch custom bots
+  Future<void> _fetchCustomBots() async {
+    setState(() {
+      _isLoadingBots = true;
+    });
+
+    try {
+      final bots = await BotService.getBots();
+      setState(() {
+        _customBots = bots;
+        _isLoadingBots = false;
+      });
+    } catch (e) {
+      print('Error fetching custom bots: $e');
+      setState(() {
+        _isLoadingBots = false;
+      });
+    }
+  }
+
   void _showAllModelsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -233,100 +262,234 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Model list
+                // Default Models Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
-                    children: aiModes.map((mode) {
-                      final isSelected = aiModes[_selectedModelIndex] == mode;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF8A70FF)
-                                : Colors.grey[200]!,
-                            width: 1.5,
-                          ),
-                          color: isSelected
-                              ? const Color(0xFFF5F3FF)
-                              : Colors.white,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Default Models',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _selectedModelIndex = aiModes.indexOf(mode);
-                            });
-                            Navigator.pop(context);
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                // Model icon
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.all(6),
-                                  child: Image.asset(
-                                    mode['image'],
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Model info
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        mode['label'],
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _getModelDescription(mode['label']),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Selected indicator
-                                if (isSelected)
+                      ),
+                      const SizedBox(height: 12),
+                      ...aiModes.map((mode) {
+                        final isSelected = !_isCustomBot &&
+                            aiModes[_selectedModelIndex] == mode;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF8A70FF)
+                                  : Colors.grey[200]!,
+                              width: 1.5,
+                            ),
+                            color: isSelected
+                                ? const Color(0xFFF5F3FF)
+                                : Colors.white,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedModelIndex = aiModes.indexOf(mode);
+                                _isCustomBot = false;
+                              });
+                              Navigator.pop(context);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
                                   Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF8A70FF),
-                                      shape: BoxShape.circle,
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 14,
+                                    padding: const EdgeInsets.all(6),
+                                    child: Image.asset(
+                                      mode['image'],
+                                      fit: BoxFit.contain,
                                     ),
                                   ),
-                              ],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          mode['label'],
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _getModelDescription(mode['label']),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF8A70FF),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ],
                   ),
                 ),
+
+                // Custom Bots Section
+                if (_customBots.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Custom Bots',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._customBots.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final bot = entry.value;
+                          final isSelected =
+                              _isCustomBot && _selectedModelIndex == index;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF8A70FF)
+                                    : Colors.grey[200]!,
+                                width: 1.5,
+                              ),
+                              color: isSelected
+                                  ? const Color(0xFFF5F3FF)
+                                  : Colors.white,
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedModelIndex = index;
+                                  _isCustomBot = true;
+                                });
+                                Navigator.pop(context);
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      child: const Icon(
+                                        Icons.smart_toy,
+                                        color: Color(0xFF8A70FF),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            bot.assistantName ?? 'Unnamed Bot',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          if (bot.description?.isNotEmpty ??
+                                              false) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              bot.description!,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF8A70FF),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Loading indicator for custom bots
+                if (_isLoadingBots)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -593,16 +756,37 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
   void _navigateToChatScreen(String message) {
     if (message.trim().isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChatAvailableBotScreen(
-            initialMessage: message.trim(),
-            selectedModelIndex: _selectedModelIndex,
-            remainingTokens: _remainingTokens,
+      if (_isCustomBot) {
+        // Handle custom bot chat
+        final bot = _customBots[_selectedModelIndex];
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatAvailableBotScreen(
+              initialMessage: message.trim(),
+              selectedModelIndex: _selectedModelIndex,
+              remainingTokens: _remainingTokens,
+              isCustomBot: true,
+              customBotId: bot.id,
+              customBotName: bot.assistantName ?? 'Custom Bot',
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // Handle default model chat
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatAvailableBotScreen(
+              initialMessage: message.trim(),
+              selectedModelIndex: _selectedModelIndex,
+              remainingTokens: _remainingTokens,
+              isCustomBot: false,
+              modelId: aiModes[_selectedModelIndex]['value'],
+            ),
+          ),
+        );
+      }
       _messageController.clear();
     }
   }
@@ -961,18 +1145,28 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             CircleAvatar(
                               radius: 12,
                               backgroundColor: Colors.grey[100],
-                              child: ClipOval(
-                                child: Image.asset(
-                                  aiModes[_selectedModelIndex]['image'],
-                                  width: 24,
-                                  height: 24,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                              child: _isCustomBot
+                                  ? const Icon(
+                                      Icons.smart_toy,
+                                      color: Color(0xFF8A70FF),
+                                      size: 16,
+                                    )
+                                  : ClipOval(
+                                      child: Image.asset(
+                                        aiModes[_selectedModelIndex]['image'],
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              aiModes[_selectedModelIndex]['label'],
+                              _isCustomBot
+                                  ? _customBots[_selectedModelIndex]
+                                          .assistantName ??
+                                      'Custom Bot'
+                                  : aiModes[_selectedModelIndex]['label'],
                               style: TextStyle(
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,

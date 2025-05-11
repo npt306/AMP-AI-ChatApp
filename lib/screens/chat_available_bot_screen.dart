@@ -5,17 +5,28 @@ import './homepage_screen/prompt_bottom_sheet.dart';
 import '../services/ai_chat_service.dart';
 import '../services/prompt_service.dart';
 import '../models/prompt.dart' as prompt;
+import '../services/bot_service.dart';
+import '../models/bot.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class ChatAvailableBotScreen extends StatefulWidget {
   final String initialMessage;
   final int selectedModelIndex;
   final int remainingTokens;
+  final bool isCustomBot;
+  final String? customBotId;
+  final String? customBotName;
+  final String? modelId;
 
   const ChatAvailableBotScreen({
     Key? key,
     required this.initialMessage,
     required this.selectedModelIndex,
     required this.remainingTokens,
+    this.isCustomBot = false,
+    this.customBotId,
+    this.customBotName,
+    this.modelId,
   }) : super(key: key);
 
   @override
@@ -35,6 +46,18 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   String _selectedModelImage = '';
   String _selectedModelDescription = '';
   String _selectedModelCompany = '';
+  bool _isCustomBot = false;
+  String? _selectedCustomBotId;
+  String? _selectedCustomBotName;
+  List<Bot> _customBots = [];
+  bool _isLoadingBots = false;
+
+  // Add these properties to track overlay state
+  bool _isOverlayShowing = false;
+  OverlayEntry? _currentOverlayEntry;
+  String _currentQuery = '';
+  List<prompt.Prompt> _dialogPrompts = [];
+  bool _isLoadingDialogPrompts = false;
 
   final List<Map<String, dynamic>> aiModes = const [
     {
@@ -75,24 +98,30 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     },
   ];
 
-  // Add these properties to track overlay state
-  bool _isOverlayShowing = false;
-  OverlayEntry? _currentOverlayEntry;
-  String _currentQuery = '';
-  List<prompt.Prompt> _dialogPrompts = [];
-  bool _isLoadingDialogPrompts = false;
-
   @override
   void initState() {
     super.initState();
     print('ChatAvailableBotScreen initState called');
     _selectedModelIndex = widget.selectedModelIndex;
     _remainingTokens = widget.remainingTokens;
-    _selectedModelLabel = aiModes[_selectedModelIndex]['label'];
-    _selectedModelImage = aiModes[_selectedModelIndex]['image'];
-    _selectedModelId = aiModes[_selectedModelIndex]['value'];
-    _selectedModelDescription = _getModelDescription(_selectedModelLabel);
-    _selectedModelCompany = aiModes[_selectedModelIndex]['company'];
+    _isCustomBot = widget.isCustomBot;
+    _selectedCustomBotId = widget.customBotId;
+    _selectedCustomBotName = widget.customBotName;
+
+    if (widget.isCustomBot) {
+      _selectedModelLabel = widget.customBotName ?? 'Custom Bot';
+      _selectedModelId = widget.customBotId ?? '';
+      _selectedModelImage = ''; // Remove image path since we'll use icon
+      _selectedModelDescription = 'Custom AI Assistant';
+      _selectedModelCompany = 'Custom';
+    } else {
+      _selectedModelLabel = aiModes[_selectedModelIndex]['label'];
+      _selectedModelImage = aiModes[_selectedModelIndex]['image'];
+      _selectedModelId =
+          widget.modelId ?? aiModes[_selectedModelIndex]['value'];
+      _selectedModelDescription = _getModelDescription(_selectedModelLabel);
+      _selectedModelCompany = aiModes[_selectedModelIndex]['company'];
+    }
 
     _messageController.addListener(() {
       final text = _messageController.text;
@@ -101,32 +130,63 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
       }
     });
 
-    // Call sendMessage API when the page loads
+    // Call appropriate API when the page loads
     if (widget.initialMessage.isNotEmpty) {
       _chatMessages.add({
         'sender': 'user',
         'message': widget.initialMessage,
       });
 
-      AiChatService.sendMessage(
-        content: widget.initialMessage,
-        modelId: _selectedModelId,
-        modelName: _selectedModelLabel,
-      ).then((response) {
-        setState(() {
-          _chatMessages.add({
-            'sender': 'ai',
-            'message': response.message,
+      if (widget.isCustomBot) {
+        AiChatService.chatWithBot(
+          messages: [
+            {
+              'role': 'user',
+              'content': widget.initialMessage,
+              'files': [],
+              'assistant': {
+                'id': widget.customBotId,
+                'model': 'dify',
+                'name': widget.customBotName ?? 'Custom Bot',
+              },
+            }
+          ],
+          modelId: widget.customBotId ?? '',
+          modelName: widget.customBotName ?? 'Custom Bot',
+        ).then((response) {
+          setState(() {
+            _chatMessages.add({
+              'sender': 'ai',
+              'message': response.message,
+            });
+            _remainingTokens = response.remainingUsage;
           });
-          _remainingTokens = response.remainingUsage;
+        }).catchError((error) {
+          print('Error chatting with bot: $error');
         });
-      }).catchError((error) {
-        // Handle error
-        print('Error sending message: $error');
-      });
+      } else {
+        AiChatService.sendMessage(
+          content: widget.initialMessage,
+          modelId: _selectedModelId,
+          modelName: _selectedModelLabel,
+        ).then((response) {
+          setState(() {
+            _chatMessages.add({
+              'sender': 'ai',
+              'message': response.message,
+            });
+            _remainingTokens = response.remainingUsage;
+          });
+        }).catchError((error) {
+          print('Error sending message: $error');
+        });
+      }
 
       _fetchPrompts();
     }
+
+    // Fetch custom bots
+    _fetchCustomBots();
   }
 
   // Add this property to store fetched prompts
@@ -202,22 +262,38 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     };
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
-      final userMessage = _messageController.text.trim();
+  Future<void> _sendMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
 
-      setState(() {
-        _chatMessages.add({
-          'sender': 'user',
-          'message': userMessage,
-        });
+    setState(() {
+      _isWaitingForResponse = true;
+      _chatMessages.add({
+        'sender': 'user',
+        'message': message,
       });
+      _messageController.clear();
+    });
 
-      AiChatService.sendMessage(
-        content: widget.initialMessage,
-        modelId: _selectedModelId,
-        modelName: _selectedModelLabel,
-      ).then((response) {
+    try {
+      if (widget.isCustomBot) {
+        final response = await AiChatService.chatWithBot(
+          messages: [
+            {
+              'role': 'user',
+              'content': message,
+              'files': [],
+              'assistant': {
+                'id': widget.customBotId,
+                'model': 'dify',
+                'name': widget.customBotName ?? 'Custom Bot',
+              },
+            }
+          ],
+          modelId: widget.customBotId ?? '',
+          modelName: widget.customBotName ?? 'Custom Bot',
+        );
+
         setState(() {
           _chatMessages.add({
             'sender': 'ai',
@@ -225,12 +301,34 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           });
           _remainingTokens = response.remainingUsage;
         });
-      }).catchError((error) {
-        // Handle error
-        print('Error sending message: $error');
-      });
+      } else {
+        final response = await AiChatService.sendMessage(
+          content: message,
+          modelId: _selectedModelId,
+          modelName: _selectedModelLabel,
+        );
 
-      _messageController.clear();
+        setState(() {
+          _chatMessages.add({
+            'sender': 'ai',
+            'message': response.message,
+          });
+          _remainingTokens = response.remainingUsage;
+        });
+      }
+    } catch (e) {
+      print('Error sending message: $e');
+      setState(() {
+        _chatMessages.add({
+          'sender': 'ai',
+          'message':
+              'Sorry, there was an error processing your message. Please try again.',
+        });
+      });
+    } finally {
+      setState(() {
+        _isWaitingForResponse = false;
+      });
     }
   }
 
@@ -372,104 +470,244 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Model list
+                // Default Models Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
-                    children: aiModes.map((mode) {
-                      final isSelected = aiModes[_selectedModelIndex] == mode;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF8A70FF)
-                                : Colors.grey[200]!,
-                            width: 1.5,
-                          ),
-                          color: isSelected
-                              ? const Color(0xFFF5F3FF)
-                              : Colors.white,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Default Models',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: InkWell(
-                          onTap: () {
-                            _updateModelSelection(aiModes.indexOf(mode));
-                            Navigator.pop(context);
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                // Model icon
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    // color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color:
-                                          Colors.grey[100]!, // ✅ màu viền đen
-                                      width:
-                                          0.5, // ✅ độ dày viền (có thể chỉnh)
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.all(6),
-                                  child: Image.asset(
-                                    mode['image'],
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Model info
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        mode['label'],
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _getModelDescription(mode['label']),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Selected indicator
-                                if (isSelected)
+                      ),
+                      const SizedBox(height: 12),
+                      ...aiModes.map((mode) {
+                        final isSelected = !_isCustomBot &&
+                            aiModes[_selectedModelIndex] == mode;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF8A70FF)
+                                  : Colors.grey[200]!,
+                              width: 1.5,
+                            ),
+                            color: isSelected
+                                ? const Color(0xFFF5F3FF)
+                                : Colors.white,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedModelIndex = aiModes.indexOf(mode);
+                                _isCustomBot = false;
+                                _selectedCustomBotId = null;
+                                _selectedCustomBotName = null;
+                                _selectedModelLabel = mode['label'];
+                                _selectedModelImage = mode['image'];
+                                _selectedModelId = mode['value'];
+                                _selectedModelDescription =
+                                    _getModelDescription(_selectedModelLabel);
+                                _selectedModelCompany = mode['company'];
+                              });
+                              Navigator.pop(context);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
                                   Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF8A70FF),
-                                      shape: BoxShape.circle,
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 14,
+                                    padding: const EdgeInsets.all(6),
+                                    child: Image.asset(
+                                      mode['image'],
+                                      fit: BoxFit.contain,
                                     ),
                                   ),
-                              ],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          mode['label'],
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _getModelDescription(mode['label']),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF8A70FF),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ],
                   ),
                 ),
+
+                // Custom Bots Section
+                if (_customBots.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Custom Bots',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._customBots.map((bot) {
+                          final isSelected =
+                              _isCustomBot && _selectedCustomBotId == bot.id;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF8A70FF)
+                                    : Colors.grey[200]!,
+                                width: 1.5,
+                              ),
+                              color: isSelected
+                                  ? const Color(0xFFF5F3FF)
+                                  : Colors.white,
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _isCustomBot = true;
+                                  _selectedCustomBotId = bot.id;
+                                  _selectedCustomBotName = bot.assistantName;
+                                  _selectedModelLabel =
+                                      bot.assistantName ?? 'Custom Bot';
+                                  _selectedModelId = bot.id;
+                                  _selectedModelImage = '';
+                                  _selectedModelDescription =
+                                      'Custom AI Assistant';
+                                  _selectedModelCompany = 'Custom';
+                                });
+                                Navigator.pop(context);
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      child: const Icon(
+                                        Icons.smart_toy,
+                                        color: Color(0xFF8A70FF),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            bot.assistantName ?? 'Custom Bot',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            bot.description ??
+                                                'Custom AI Assistant',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF8A70FF),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Loading indicator for custom bots
+                if (_isLoadingBots)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -734,6 +972,26 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     _messageController.addListener(slashListener);
   }
 
+  // Add this method to fetch custom bots
+  Future<void> _fetchCustomBots() async {
+    setState(() {
+      _isLoadingBots = true;
+    });
+
+    try {
+      final bots = await BotService.getBots();
+      setState(() {
+        _customBots = bots;
+        _isLoadingBots = false;
+      });
+    } catch (e) {
+      print('Error fetching custom bots: $e');
+      setState(() {
+        _isLoadingBots = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     // If there's an active overlay when disposing, remove it
@@ -762,12 +1020,18 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: Image.asset(
-                _selectedModelImage,
-                width: 20, // Kích thước ảnh tương đương size của Icon
-                height: 20,
-                fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-              ),
+              child: _isCustomBot
+                  ? const Icon(
+                      Icons.smart_toy,
+                      color: Color(0xFF8A70FF),
+                      size: 24,
+                    )
+                  : Image.asset(
+                      _selectedModelImage,
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.contain,
+                    ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -803,12 +1067,18 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Image.asset(
-                        _selectedModelImage,
-                        width: 30, // Kích thước ảnh tương đương size của Icon
-                        height: 30,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
+                      child: _isCustomBot
+                          ? const Icon(
+                              Icons.smart_toy,
+                              color: Color(0xFF8A70FF),
+                              size: 30,
+                            )
+                          : Image.asset(
+                              _selectedModelImage,
+                              width: 30,
+                              height: 30,
+                              fit: BoxFit.contain,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -909,13 +1179,19 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                               width: 1,
                             ),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.asset(
-                              _selectedModelImage,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                          child: _isCustomBot
+                              ? const Icon(
+                                  Icons.smart_toy,
+                                  color: Color(0xFF8A70FF),
+                                  size: 20,
+                                )
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.asset(
+                                    _selectedModelImage,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
                         ),
                       ],
                       Flexible(
@@ -1054,18 +1330,26 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             CircleAvatar(
                               radius: 12,
                               backgroundColor: Colors.grey[100],
-                              child: ClipOval(
-                                child: Image.asset(
-                                  aiModes[_selectedModelIndex]['image'],
-                                  width: 24,
-                                  height: 24,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                              child: _isCustomBot
+                                  ? const Icon(
+                                      Icons.smart_toy,
+                                      color: Color(0xFF8A70FF),
+                                      size: 16,
+                                    )
+                                  : ClipOval(
+                                      child: Image.asset(
+                                        aiModes[_selectedModelIndex]['image'],
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              aiModes[_selectedModelIndex]['label'],
+                              _isCustomBot
+                                  ? _selectedCustomBotName ?? 'Custom Bot'
+                                  : aiModes[_selectedModelIndex]['label'],
                               style: TextStyle(
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,
@@ -1221,7 +1505,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             ),
                             IconButton(
                               icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: _chatWithBot,
+                              onPressed: _sendMessage,
                             ),
                           ],
                         ),
