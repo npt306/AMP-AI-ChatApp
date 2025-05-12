@@ -5,11 +5,18 @@ import '../history_screen.dart';
 import '../prompt_library_screen/prompt_library_screen.dart';
 import '../upgrade_screen.dart';
 import '../email_composer_screen/email_composer_screen.dart';
-import '../prompt_library_screen/prompt.dart';
 import 'prompt_bottom_sheet.dart';
 import '../my_bot_screen.dart';
 import '../chat_available_bot_screen.dart';
 import '../knowledge_manager_screen.dart';
+import '../../services/prompt_service.dart';
+import '../../models/prompt.dart';
+import '../../services/token_service.dart';
+import '../../services/subscription_service.dart';
+import '../../services/bot_service.dart';
+import '../../models/bot.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -21,157 +28,475 @@ class HomepageScreen extends StatefulWidget {
 class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
-  final int _remainingTokens = 100; // Add remaining tokens count
-  final bool _isPro = true; // Add pro status check
+  bool _isCustomBot = false;
+  int _remainingTokens = 1;
+  bool _isPro = false;
+  String _subscriptionType = 'Basic';
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
+  String _currentQuery = '';
+  List<Bot> _customBots = [];
+  bool _isLoadingBots = false;
+
+  // Add this field to track overlay state
+  bool _isOverlayShowing = false;
+  // Optionally keep a reference to the current overlay entry
+  OverlayEntry? _currentOverlayEntry;
+
+  // Add this property to store fetched prompts
+  List<Prompt> _prompts = [];
+  List<Prompt> _dialogPrompts = []; // Add this for dialog prompts
+  bool _isLoadingPrompts = true;
+  bool _isLoadingDialogPrompts = false; // Add this for dialog loading state
+
   final List<Map<String, dynamic>> aiModes = const [
     {
-      'image': 'assets/images/deepseek.png',
-      'label': 'DeepSeek V3',
-    },
-    {
-      'image': 'assets/images/gpt.webp',
-      'label': 'GPT-4',
+      'image': 'assets/images/claude.png',
+      'label': 'Claude 3 Haiku',
+      'value': 'claude-3-haiku-20240307',
     },
     {
       'image': 'assets/images/claude.png',
-      'label': 'Claude 3',
+      'label': 'Claude 3.5 Sonnet',
+      'value': 'claude-3-5-sonnet-20240620',
     },
     {
-      'image': 'assets/images/llama.png',
-      'label': 'Llama 3',
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Flash',
+      'value': 'gemini-1.5-flash-latest',
+    },
+    {
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Pro',
+      'value': 'gemini-1.5-pro-latest',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o',
+      'value': 'gpt-4o',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o Mini',
+      'value': 'gpt-4o-mini',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(() {
+      final text = _messageController.text;
+      if (text == '/' && _messageFocusNode.hasFocus && !_isOverlayShowing) {
+        _showPromptsDialog(context);
+      }
+    });
+
+    // Fetch prompts when the screen initializes
+    _fetchPrompts();
+
+    // Fetch token usage
+    _fetchTokenUsage();
+
+    // Check subscription
+    _checkSubscription();
+
+    // Fetch custom bots
+    _fetchCustomBots();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh tokens when returning to this screen
+    _fetchTokenUsage();
+  }
+
+  Future<void> _checkSubscription() async {
+    try {
+      final usage = await SubscriptionService.getUsage();
+      setState(() {
+        _subscriptionType = usage['subscriptionType'];
+        _isPro = _subscriptionType != 'basic';
+      });
+    } catch (e) {
+      print('Error checking subscription: $e');
+    }
+  }
+
+  // Add this method to fetch prompts from API
+  Future<void> _fetchPrompts() async {
+    setState(() {
+      _isLoadingPrompts = true;
+    });
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        limit: 10, // Initial page size
+        offset: 0, // Starting from the beginning
+        isPublic: true,
+      );
+
+      setState(() {
+        _prompts = promptResponse.items;
+        _isLoadingPrompts = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPrompts = false;
+      });
+      print('Error fetching prompts: $e');
+    }
+  }
+
+  // Add this method to fetch token usage
+  Future<void> _fetchTokenUsage() async {
+    try {
+      final usage = await TokenService.getTokenUsage();
+      setState(() {
+        _remainingTokens = usage.availableTokens;
+      });
+    } catch (e) {
+      print('Error fetching token usage: $e');
+      // Keep the default value if there's an error
+    }
+  }
+
+  // Add this method to fetch prompts with query for dialog
+  Future<void> _fetchDialogPrompts(String query) async {
+    _isLoadingDialogPrompts = true;
+    if (_currentOverlayEntry != null) {
+      _currentOverlayEntry!.markNeedsBuild();
+    }
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        query: query,
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      _dialogPrompts = promptResponse.items;
+    } catch (e) {
+      print('Error fetching dialog prompts: $e');
+    } finally {
+      _isLoadingDialogPrompts = false;
+      if (_currentOverlayEntry != null) {
+        _currentOverlayEntry!.markNeedsBuild();
+      }
+    }
+  }
+
+  // Add this method to fetch custom bots
+  Future<void> _fetchCustomBots() async {
+    setState(() {
+      _isLoadingBots = true;
+    });
+
+    try {
+      final bots = await BotService.getBots();
+      setState(() {
+        _customBots = bots;
+        _isLoadingBots = false;
+      });
+    } catch (e) {
+      print('Error fetching custom bots: $e');
+      setState(() {
+        _isLoadingBots = false;
+      });
+    }
+  }
 
   void _showAllModelsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header với title và close button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Select AI Model',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 20),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                      const Text(
+                        'Select AI Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Choose the AI model that best suits your needs',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                // Subtitle and description
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Choose the AI model that best suits your needs',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // Model list
-                ...aiModes.map((mode) {
-                  final isSelected = aiModes[_selectedModelIndex] == mode;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF8A70FF)
-                            : Colors.grey.shade200,
-                        width: 2,
+                // Default Models Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Default Models',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      color:
-                          isSelected ? const Color(0xFFF5F3FF) : Colors.white,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedModelIndex = aiModes.indexOf(mode);
-                        });
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            // Model icon
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(8),
-                              child: Image.asset(
-                                mode['image'],
-                                fit: BoxFit.contain,
-                              ),
+                      const SizedBox(height: 12),
+                      ...aiModes.map((mode) {
+                        final isSelected = !_isCustomBot &&
+                            aiModes[_selectedModelIndex] == mode;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF8A70FF)
+                                  : Colors.grey[200]!,
+                              width: 1.5,
                             ),
-                            const SizedBox(width: 16),
-                            // Model info
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            color: isSelected
+                                ? const Color(0xFFF5F3FF)
+                                : Colors.white,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedModelIndex = aiModes.indexOf(mode);
+                                _isCustomBot = false;
+                              });
+                              Navigator.pop(context);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    mode['label'],
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.all(6),
+                                    child: Image.asset(
+                                      mode['image'],
+                                      fit: BoxFit.contain,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _getModelDescription(mode['label']),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          mode['label'],
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _getModelDescription(mode['label']),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
+                                  if (isSelected)
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF8A70FF),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
-                            // Selected indicator
-                            if (isSelected)
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF8A70FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 16,
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+
+                // Custom Bots Section
+                if (_customBots.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Custom Bots',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._customBots.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final bot = entry.value;
+                          final isSelected =
+                              _isCustomBot && _selectedModelIndex == index;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF8A70FF)
+                                    : Colors.grey[200]!,
+                                width: 1.5,
+                              ),
+                              color: isSelected
+                                  ? const Color(0xFFF5F3FF)
+                                  : Colors.white,
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedModelIndex = index;
+                                  _isCustomBot = true;
+                                });
+                                Navigator.pop(context);
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      child: const Icon(
+                                        Icons.smart_toy,
+                                        color: Color(0xFF8A70FF),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            bot.assistantName ?? 'Unnamed Bot',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          if (bot.description?.isNotEmpty ??
+                                              false) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              bot.description!,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF8A70FF),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ],
+
+                // Loading indicator for custom bots
+                if (_isLoadingBots)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -181,85 +506,324 @@ class _HomepageScreenState extends State<HomepageScreen> {
   }
 
   void _showPromptsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: samplePrompts.length,
-              itemBuilder: (context, index) {
-                final prompt = samplePrompts[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  title: Text(
-                    prompt.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Text(
-                    prompt.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                        ),
-                        child: PromptBottomSheet(
-                          prompt: prompt.content,
-                          title: prompt.title,
-                          description: prompt.description,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+    // Return early if an overlay is already showing
+    if (_isOverlayShowing) return;
 
-  @override
-  void initState() {
-    super.initState();
-    _messageController.addListener(() {
+    _isOverlayShowing = true;
+    _currentQuery = ''; // Reset query when opening dialog
+    _dialogPrompts = []; // Reset dialog prompts
+
+    // Get the render box of the text field to calculate position
+    final RenderBox inputBox =
+        _messageFocusNode.context!.findRenderObject() as RenderBox;
+    final offset = inputBox.localToGlobal(Offset.zero);
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    // Create a scroll controller to detect when we reach the bottom
+    final ScrollController scrollController = ScrollController();
+
+    // Track pagination state
+    int currentOffset = 0;
+    const int pageSize = 10;
+    bool isLoadingMore = false;
+    bool hasMoreData = true;
+
+    // Pre-declare function variables to avoid circular references
+    late void Function() textListener;
+    late void Function() slashListener;
+
+    // Function to close dialog and clear the "/" character
+    void closeDialog() {
+      if (_messageController.text.startsWith('/')) {
+        _messageController.clear();
+      }
+
+      // Only remove if it hasn't been removed already
+      if (_isOverlayShowing) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+
+        // Update tracking variable
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    }
+
+    // Define the listener functions after pre-declaration
+    textListener = () {
+      if (!_messageFocusNode.hasFocus) {
+        if (_messageController.text.startsWith('/')) {
+          _messageController.clear();
+        }
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    };
+
+    slashListener = () {
       final text = _messageController.text;
-      if (text == '/') {
-        _showPromptsDialog(context);
+      if (text.isEmpty || !text.startsWith('/')) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      } else {
+        // Extract query from text after '/'
+        final newQuery = text.substring(1).trim();
+        if (newQuery != _currentQuery) {
+          _currentQuery = newQuery;
+          // Reset pagination state
+          currentOffset = 0;
+          hasMoreData = true;
+          // Fetch prompts with new query (empty string for default prompts)
+          _fetchDialogPrompts(_currentQuery);
+        }
+      }
+    };
+
+    // Function to load more prompts
+    Future<void> loadMorePrompts() async {
+      if (isLoadingMore || !hasMoreData) return;
+
+      isLoadingMore = true;
+      try {
+        currentOffset += pageSize;
+        final promptResponse = await PromptService.getPrompts(
+          query: _currentQuery,
+          limit: pageSize,
+          offset: currentOffset,
+          isPublic: true,
+        );
+
+        if (promptResponse.items.isEmpty) {
+          hasMoreData = false;
+        } else {
+          _dialogPrompts.addAll(promptResponse.items);
+        }
+
+        // Force rebuild of overlay
+        overlayEntry.markNeedsBuild();
+      } catch (e) {
+        print('Error loading more prompts: $e');
+      } finally {
+        isLoadingMore = false;
+      }
+    }
+
+    // Add scroll listener
+    scrollController.addListener(() {
+      if (scrollController.position.pixels >=
+              scrollController.position.maxScrollExtent -
+                  100 && // 100px before the end
+          !isLoadingMore &&
+          hasMoreData) {
+        loadMorePrompts();
       }
     });
+
+    // Initial fetch of prompts when dialog opens
+    _fetchDialogPrompts('');
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Invisible full-screen GestureDetector to handle outside taps
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: closeDialog,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          // The actual prompt dialog
+          Positioned(
+            bottom: MediaQuery.of(context).size.height - offset.dy + 20,
+            left: 16,
+            right: 100,
+            child: GestureDetector(
+              onTap: () {},
+              child: Material(
+                elevation: 0,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.grey[200]!,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _isLoadingDialogPrompts
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Expanded(
+                              child: ListView.builder(
+                                controller: scrollController,
+                                shrinkWrap: true,
+                                itemCount: _dialogPrompts.length +
+                                    (hasMoreData ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  // Show loading indicator at the end
+                                  if (index == _dialogPrompts.length) {
+                                    return const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16.0),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final prompt = _dialogPrompts[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 4,
+                                    ),
+                                    title: Text(
+                                      prompt.title,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      // Close the prompts dialog first
+                                      closeDialog();
+
+                                      // Show the prompt bottom sheet
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        builder: (context) => Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: MediaQuery.of(context)
+                                                .viewInsets
+                                                .bottom,
+                                          ),
+                                          child: PromptBottomSheet(
+                                            prompt: prompt.content,
+                                            title: prompt.title,
+                                            description:
+                                                prompt.description ?? '',
+                                            selectedModelIndex:
+                                                _selectedModelIndex,
+                                            remainingTokens: _remainingTokens,
+                                            isInChatScreen: false,
+                                            isCustomBot: _isCustomBot,
+                                            customBotId: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .id
+                                                : null,
+                                            customBotName: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .assistantName
+                                                : null,
+                                            modelId: _isCustomBot
+                                                ? _customBots[
+                                                        _selectedModelIndex]
+                                                    .id
+                                                : aiModes[_selectedModelIndex]
+                                                    ['value'],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Store a reference to the current overlay entry
+    _currentOverlayEntry = overlayEntry;
+
+    overlay.insert(overlayEntry);
+    _messageFocusNode.addListener(textListener);
+    _messageController.addListener(slashListener);
+  }
+
+  void _navigateToChatScreen(String message) {
+    if (message.trim().isNotEmpty) {
+      if (_isCustomBot) {
+        // Handle custom bot chat
+        final bot = _customBots[_selectedModelIndex];
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatAvailableBotScreen(
+              initialMessage: message.trim(),
+              selectedModelIndex: _selectedModelIndex,
+              remainingTokens: _remainingTokens,
+              isCustomBot: true,
+              customBotId: bot.id,
+              customBotName: bot.assistantName ?? 'Custom Bot',
+              modelId: bot.id, // Add modelId for custom bot
+            ),
+          ),
+        );
+      } else {
+        // Handle default model chat
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatAvailableBotScreen(
+              initialMessage: message.trim(),
+              selectedModelIndex: _selectedModelIndex,
+              remainingTokens: _remainingTokens,
+              isCustomBot: false,
+              modelId: aiModes[_selectedModelIndex]['value'],
+            ),
+          ),
+        );
+      }
+      _messageController.clear();
+    }
   }
 
   @override
   void dispose() {
+    // If there's an active overlay when disposing, remove it
+    if (_isOverlayShowing && _currentOverlayEntry != null) {
+      _currentOverlayEntry!.remove();
+      _isOverlayShowing = false;
+    }
+
     _messageController.dispose();
     _messageFocusNode.dispose();
     super.dispose();
@@ -298,7 +862,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const PromptLibraryScreen()),
+                  builder: (context) => PromptLibraryScreen(
+                        selectedModelIndex: _selectedModelIndex,
+                        remainingTokens: _remainingTokens,
+                      )),
             );
           }
           if (index == 4) {
@@ -335,19 +902,28 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 201, 195, 235),
-                foregroundColor: Colors.white,
+                backgroundColor: _isPro
+                    ? const Color(0xFFFFB800) // Pro color
+                    : const Color.fromARGB(255, 201, 195, 235), // Free color
+                foregroundColor: _isPro ? Colors.black87 : Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 minimumSize: const Size(0, 36),
               ),
-              icon: const Icon(Icons.auto_awesome, size: 16),
+              icon: Icon(
+                _isPro ? FontAwesomeIcons.crown : Icons.auto_awesome,
+                size: 16,
+                color: _isPro ? Colors.black87 : Colors.white,
+              ),
               label: Text(
-                _isPro ? 'Pro' : 'Upgrade',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                _subscriptionType.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: _isPro ? Colors.black87 : Colors.white,
+                ),
               ),
             ),
           ),
@@ -385,57 +961,42 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // AI Assistant Logo
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF8A70FF), Color(0xFF2E9BFF)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF8A70FF), Color(0xFF2E9BFF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(40),
                         ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Positioned(
-                              left: 10,
-                              child: Container(
-                                width: 8,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/images/logo.svg',
+                            width: 30,
+                            height: 30,
+                            colorFilter: const ColorFilter.mode(
+                              Colors.white,
+                              BlendMode.srcIn,
                             ),
-                            Positioned(
-                              right: 10,
-                              child: Transform.rotate(
-                                angle: -0.5,
-                                child: Container(
-                                  width: 8,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Effica Assist',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF8A70FF),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -469,7 +1030,10 @@ class _HomepageScreenState extends State<HomepageScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const PromptLibraryScreen()),
+                            builder: (context) => PromptLibraryScreen(
+                                  selectedModelIndex: _selectedModelIndex,
+                                  remainingTokens: _remainingTokens,
+                                )),
                       );
                     },
                     child: Text(
@@ -481,38 +1045,64 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   ),
                 ]),
               ),
-              ...samplePrompts.take(3).map((prompt) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    children: [
-                      _buildPromptItem(
-                        prompt.title,
-                        Icons.arrow_forward,
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            builder: (context) => Padding(
-                              padding: EdgeInsets.only(
-                                bottom:
-                                    MediaQuery.of(context).viewInsets.bottom,
+              _isLoadingPrompts
+                  ? const Center(
+                      child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ))
+                  : Column(
+                      children: _prompts.take(3).map((prompt) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Column(
+                            children: [
+                              _buildPromptItem(
+                                prompt.title,
+                                Icons.arrow_forward,
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    builder: (context) => Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: MediaQuery.of(context)
+                                            .viewInsets
+                                            .bottom,
+                                      ),
+                                      child: PromptBottomSheet(
+                                        prompt: prompt.content,
+                                        title: prompt.title,
+                                        description: prompt.description ?? '',
+                                        selectedModelIndex: _selectedModelIndex,
+                                        remainingTokens: _remainingTokens,
+                                        isInChatScreen: false,
+                                        isCustomBot: _isCustomBot,
+                                        customBotId: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .id
+                                            : null,
+                                        customBotName: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .assistantName
+                                            : null,
+                                        modelId: _isCustomBot
+                                            ? _customBots[_selectedModelIndex]
+                                                .id
+                                            : aiModes[_selectedModelIndex]
+                                                ['value'],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                              child: PromptBottomSheet(
-                                prompt: prompt.content,
-                                title: prompt.title,
-                                description: prompt.description,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (prompt != samplePrompts.take(3).last)
-                        const SizedBox(height: 0),
-                    ],
-                  ),
-                );
-              }).toList(),
+                              if (prompt != _prompts.take(3).toList().last)
+                                const SizedBox(height: 0),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
             ],
           ),
 
@@ -579,18 +1169,28 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             CircleAvatar(
                               radius: 12,
                               backgroundColor: Colors.grey[100],
-                              child: ClipOval(
-                                child: Image.asset(
-                                  aiModes[_selectedModelIndex]['image'],
-                                  width: 24,
-                                  height: 24,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                              child: _isCustomBot
+                                  ? const Icon(
+                                      Icons.smart_toy,
+                                      color: Color(0xFF8A70FF),
+                                      size: 16,
+                                    )
+                                  : ClipOval(
+                                      child: Image.asset(
+                                        aiModes[_selectedModelIndex]['image'],
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              aiModes[_selectedModelIndex]['label'],
+                              _isCustomBot
+                                  ? _customBots[_selectedModelIndex]
+                                          .assistantName ??
+                                      'Custom Bot'
+                                  : aiModes[_selectedModelIndex]['label'],
                               style: TextStyle(
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,
@@ -701,14 +1301,32 @@ class _HomepageScreenState extends State<HomepageScreen> {
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
+                                enabled: _remainingTokens > 0,
                                 decoration: InputDecoration(
-                                  hintText: 'Message',
+                                  hintText: _remainingTokens > 0
+                                      ? 'Message'
+                                      : 'You have no tokens left.',
                                   border: InputBorder.none,
                                   enabledBorder: InputBorder.none,
                                   focusedBorder: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: TextStyle(
+                                    color: _remainingTokens > 0
+                                        ? Colors.grey
+                                        : Colors.red[300],
+                                  ),
                                 ),
                                 onTap: () {
+                                  if (_remainingTokens <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'You have no tokens left. Please upgrade to continue.'),
+                                        backgroundColor: Colors.red[300],
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   if (_showMediaIcons) {
                                     setState(() {
                                       _showMediaIcons = false;
@@ -718,15 +1336,26 @@ class _HomepageScreenState extends State<HomepageScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ChatAvailableBotScreen()),
-                                );
-                              },
+                              icon: Icon(
+                                Icons.send,
+                                color: _remainingTokens > 0
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              onPressed: _remainingTokens > 0
+                                  ? () => _navigateToChatScreen(
+                                      _messageController.text)
+                                  : () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'You have no tokens left. Please upgrade to continue.'),
+                                          backgroundColor: Colors.red[300],
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
                             ),
                           ],
                         ),
@@ -769,17 +1398,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
-  Widget _buildBottomNavItem(IconData icon, bool isSelected) {
-    return IconButton(
-      icon: Icon(
-        icon,
-        color: isSelected ? const Color(0xFF8A70FF) : Colors.grey[600],
-        size: 28,
-      ),
-      onPressed: () {},
-    );
-  }
-
   Widget _buildPromptItem(String title, IconData icon, {VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,
@@ -810,14 +1428,18 @@ class _HomepageScreenState extends State<HomepageScreen> {
   // Thêm helper method để lấy mô tả cho từng model
   String _getModelDescription(String modelName) {
     switch (modelName) {
-      case 'DeepSeek V3':
-        return 'Best for code generation and technical tasks';
-      case 'GPT-4':
+      case 'Claude 3 Haiku':
+        return 'Fast and efficient model for quick responses';
+      case 'Claude 3.5 Sonnet':
+        return 'Advanced model for complex tasks and analysis';
+      case 'Gemini 1.5 Flash':
+        return 'Quick and efficient model for everyday tasks';
+      case 'Gemini 1.5 Pro':
+        return 'Powerful model for professional use';
+      case 'GPT-4o':
         return 'Most capable model for general tasks';
-      case 'Claude 3':
-        return 'Excellent for analysis and long-form content';
-      case 'Llama 3':
-        return 'Best for code generation and technical tasks';
+      case 'GPT-4o Mini':
+        return 'Lightweight version for faster responses';
       default:
         return '';
     }

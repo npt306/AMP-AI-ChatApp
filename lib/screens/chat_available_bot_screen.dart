@@ -1,11 +1,38 @@
 import 'package:flutter/material.dart';
-import 'testScreen.dart';
 import './history_screen.dart';
 import 'prompt_library_screen/prompt.dart';
 import './homepage_screen/prompt_bottom_sheet.dart';
+import '../services/ai_chat_service.dart';
+import '../services/prompt_service.dart';
+import '../models/prompt.dart' as prompt;
+import '../services/bot_service.dart';
+import '../models/bot.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../services/token_manager.dart';
 
 class ChatAvailableBotScreen extends StatefulWidget {
-  const ChatAvailableBotScreen({super.key});
+  final String initialMessage;
+  final int selectedModelIndex;
+  final int remainingTokens;
+  final bool isCustomBot;
+  final String? customBotId;
+  final String? customBotName;
+  final String? modelId;
+  final List<Map<String, dynamic>>? conversationHistory;
+  final String? conversationId;
+
+  const ChatAvailableBotScreen({
+    Key? key,
+    required this.initialMessage,
+    required this.selectedModelIndex,
+    required this.remainingTokens,
+    this.isCustomBot = false,
+    this.customBotId,
+    this.customBotName,
+    this.modelId,
+    this.conversationHistory,
+    this.conversationId,
+  }) : super(key: key);
 
   @override
   State<ChatAvailableBotScreen> createState() => _ChatAvailableBotScreenState();
@@ -13,151 +40,707 @@ class ChatAvailableBotScreen extends StatefulWidget {
 
 class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   bool _showMediaIcons = false;
+  bool _isWaitingForResponse = false;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   int _selectedModelIndex = 0;
-  final int _remainingTokens = 100;
+  int _remainingTokens = 1;
+  List<Map<String, dynamic>> _chatMessages = [];
+  String _selectedModelLabel = '';
+  String _selectedModelId = '';
+  String _selectedModelImage = '';
+  String _selectedModelDescription = '';
+  String _selectedModelCompany = '';
+  bool _isCustomBot = false;
+  String? _selectedCustomBotId;
+  String? _selectedCustomBotName;
+  List<Bot> _customBots = [];
+  bool _isLoadingBots = false;
+
+  // Add these properties to track overlay state
+  bool _isOverlayShowing = false;
+  OverlayEntry? _currentOverlayEntry;
+  String _currentQuery = '';
+  List<prompt.Prompt> _dialogPrompts = [];
+  bool _isLoadingDialogPrompts = false;
+
+  // Add conversationId field
+  String? _conversationId;
+
   final List<Map<String, dynamic>> aiModes = const [
     {
-      'image': 'assets/images/deepseek.png',
-      'label': 'DeepSeek V3',
-    },
-    {
-      'image': 'assets/images/gpt.webp',
-      'label': 'GPT-4',
+      'image': 'assets/images/claude.png',
+      'label': 'Claude 3 Haiku',
+      'value': 'claude-3-haiku-20240307',
+      'company': 'Anthropic',
     },
     {
       'image': 'assets/images/claude.png',
-      'label': 'Claude 3',
+      'label': 'Claude 3.5 Sonnet',
+      'value': 'claude-3-5-sonnet-20240620',
+      'company': 'Anthropic',
     },
     {
-      'image': 'assets/images/llama.png',
-      'label': 'Llama 3',
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Flash',
+      'value': 'gemini-1.5-flash-latest',
+      'company': 'Google DeepMind',
+    },
+    {
+      'image': 'assets/images/gemini.png',
+      'label': 'Gemini 1.5 Pro',
+      'value': 'gemini-1.5-pro-latest',
+      'company': 'Google DeepMind',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o',
+      'value': 'gpt-4o',
+      'company': 'OpenAI',
+    },
+    {
+      'image': 'assets/images/gpt.webp',
+      'label': 'GPT-4o Mini',
+      'value': 'gpt-4o-mini',
+      'company': 'OpenAI',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    print('ChatAvailableBotScreen initState called');
+    _selectedModelIndex = widget.selectedModelIndex;
+    // Update tokens from TokenManager
+    TokenManager.instance.updateTokens().then((_) {
+      setState(() {
+        _remainingTokens = TokenManager.instance.remainingTokens;
+      });
+    });
+    _isCustomBot = widget.isCustomBot;
+    _selectedCustomBotId = widget.customBotId;
+    _selectedCustomBotName = widget.customBotName;
+
+    // Set conversation ID if provided
+    _conversationId = widget.conversationId;
+
+    // Initialize chat messages with conversation history if available
+    if (widget.conversationHistory != null) {
+      _chatMessages = List.from(widget.conversationHistory!);
+    }
+
+    if (widget.isCustomBot) {
+      _selectedModelLabel = widget.customBotName ?? 'Custom Bot';
+      _selectedModelId = widget.customBotId ?? '';
+      _selectedModelImage = ''; // Remove image path since we'll use icon
+      _selectedModelDescription = 'Custom AI Assistant';
+      _selectedModelCompany = 'Custom';
+    } else {
+      _selectedModelLabel = aiModes[_selectedModelIndex]['label'];
+      _selectedModelImage = aiModes[_selectedModelIndex]['image'];
+      _selectedModelId =
+          widget.modelId ?? aiModes[_selectedModelIndex]['value'];
+      _selectedModelDescription = _getModelDescription(_selectedModelLabel);
+      _selectedModelCompany = aiModes[_selectedModelIndex]['company'];
+    }
+
+    _messageController.addListener(() {
+      final text = _messageController.text;
+      if (text == '/' && _messageFocusNode.hasFocus && !_isOverlayShowing) {
+        _showPromptsDialog(context);
+      }
+    });
+
+    // Call appropriate API when the page loads
+    if (widget.initialMessage.isNotEmpty) {
+      _chatMessages.add({
+        'sender': 'user',
+        'message': widget.initialMessage,
+      });
+
+      if (widget.isCustomBot) {
+        AiChatService.chatWithBot(
+          messages: [
+            {
+              'role': 'user',
+              'content': widget.initialMessage,
+              'files': [],
+              'assistant': {
+                'id': widget.customBotId,
+                'model': 'dify',
+                'name': widget.customBotName ?? 'Custom Bot',
+              },
+            }
+          ],
+          modelId: widget.customBotId ?? '',
+          modelName: widget.customBotName ?? 'Custom Bot',
+          conversationId: _conversationId, // Pass conversation ID if available
+        ).then((response) {
+          setState(() {
+            _chatMessages.add({
+              'sender': 'ai',
+              'message': response.message,
+            });
+            _remainingTokens = response.remainingUsage;
+            _conversationId = response.conversationId; // Store conversation ID
+          });
+        }).catchError((error) {
+          print('Error chatting with bot: $error');
+        });
+      } else {
+        AiChatService.sendMessage(
+          content: widget.initialMessage,
+          modelId: _selectedModelId,
+          modelName: _selectedModelLabel,
+          conversationId: _conversationId, // Pass conversation ID if available
+        ).then((response) {
+          setState(() {
+            _chatMessages.add({
+              'sender': 'ai',
+              'message': response.message,
+            });
+            _remainingTokens = response.remainingUsage;
+            _conversationId = response.conversationId; // Store conversation ID
+          });
+        }).catchError((error) {
+          print('Error sending message: $error');
+        });
+      }
+
+      _fetchPrompts();
+    }
+
+    // Fetch custom bots
+    _fetchCustomBots();
+  }
+
+  // Add this property to store fetched prompts
+  List<prompt.Prompt> _prompts = [];
+  bool _isLoadingPrompts = true;
+  // Add this method to fetch prompts from API
+  Future<void> _fetchPrompts() async {
+    setState(() {
+      _isLoadingPrompts = true;
+    });
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      setState(() {
+        _prompts = promptResponse.items;
+        _isLoadingPrompts = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPrompts = false;
+      });
+      // You might want to add error handling here
+      print('Error fetching prompts: $e');
+    }
+  }
+
+  // Add this method to fetch prompts with query for dialog
+  Future<void> _fetchDialogPrompts(String query) async {
+    _isLoadingDialogPrompts = true;
+    if (_currentOverlayEntry != null) {
+      _currentOverlayEntry!.markNeedsBuild();
+    }
+
+    try {
+      final promptResponse = await PromptService.getPrompts(
+        query: query,
+        limit: 10,
+        offset: 0,
+        isPublic: true,
+      );
+
+      _dialogPrompts = promptResponse.items;
+    } catch (e) {
+      print('Error fetching dialog prompts: $e');
+    } finally {
+      _isLoadingDialogPrompts = false;
+      if (_currentOverlayEntry != null) {
+        _currentOverlayEntry!.markNeedsBuild();
+      }
+    }
+  }
+
+  Map<String, dynamic> formatMessage({
+    required String sender,
+    required String message,
+    required String modelId,
+    required String modelName,
+  }) {
+    return {
+      'role': sender == 'user' ? 'user' : 'model',
+      'content': message,
+      'files': [],
+      'assistant': {
+        'id': modelId,
+        'model': 'dify',
+        'name': modelName,
+      },
+    };
+  }
+
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty) return;
+
+    final message = _messageController.text;
+    _messageController.clear();
+
+    setState(() {
+      _chatMessages.add({
+        'sender': 'user',
+        'message': message,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      _isWaitingForResponse = true;
+    });
+
+    try {
+      // Format all messages for the API call
+      final formattedMessages = _chatMessages.map((msg) {
+        return {
+          'role': msg['sender'] == 'user' ? 'user' : 'assistant',
+          'content': msg['message'],
+          'files': [],
+          'assistant': _isCustomBot
+              ? {
+                  'id': _selectedCustomBotId,
+                  'model': 'dify',
+                  'name': _selectedCustomBotName ?? 'Custom Bot',
+                }
+              : {
+                  'id': _selectedModelId,
+                  'model': 'dify',
+                  'name': _selectedModelLabel,
+                },
+        };
+      }).toList();
+
+      final response = _isCustomBot
+          ? await AiChatService.chatWithBot(
+              messages: formattedMessages,
+              modelId: _selectedCustomBotId ?? '',
+              modelName: _selectedCustomBotName ?? 'Custom Bot',
+              conversationId: _conversationId, // Pass conversation ID
+            )
+          : await AiChatService.sendMessage(
+              content: message,
+              modelId: _selectedModelId,
+              modelName: _selectedModelLabel,
+              conversationId: _conversationId, // Pass conversation ID
+            );
+
+      setState(() {
+        _chatMessages.add({
+          'sender': 'ai',
+          'message': response.message,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        _isWaitingForResponse = false;
+        _conversationId = response.conversationId; // Update conversation ID
+      });
+
+      // Update tokens after successful message
+      TokenManager.instance.updateTokensAfterMessage(response.remainingUsage);
+      await TokenManager.instance.updateTokens(); // Refresh from server
+      setState(() {
+        _remainingTokens = TokenManager.instance.remainingTokens;
+      });
+    } catch (e) {
+      print('Error sending message: $e');
+      setState(() {
+        _chatMessages.add({
+          'sender': 'ai',
+          'message': 'Sorry, I encountered an error. Please try again.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        _isWaitingForResponse = false;
+      });
+    }
+  }
+
+  void _chatWithBot() {
+    if (_messageController.text.trim().isNotEmpty) {
+      final userMessage = _messageController.text.trim();
+
+      setState(() {
+        _chatMessages.add({
+          'sender': 'user',
+          'message': userMessage,
+        });
+        _isWaitingForResponse = true;
+      });
+
+      final formattedMessages = _chatMessages.map((msg) {
+        return {
+          'role': msg['sender'] == 'user' ? 'user' : 'assistant',
+          'content': msg['message'],
+          'files': [],
+          'assistant': {
+            'id': _selectedCustomBotId,
+            'model': 'dify',
+            'name': _selectedCustomBotName ?? 'Custom Bot',
+          },
+        };
+      }).toList();
+
+      AiChatService.chatWithBot(
+        messages: formattedMessages,
+        modelId: _selectedCustomBotId ?? '',
+        modelName: _selectedCustomBotName ?? 'Custom Bot',
+        conversationId: _conversationId, // Pass conversation ID
+      ).then((response) {
+        setState(() {
+          _chatMessages.add({
+            'sender': 'ai',
+            'message': response.message,
+          });
+          _remainingTokens = response.remainingUsage;
+          _isWaitingForResponse = false;
+        });
+      }).catchError((error) {
+        setState(() {
+          _isWaitingForResponse = false;
+        });
+        print('Error chatting with bot: $error');
+      });
+
+      _messageController.clear();
+    }
+  }
+
+  String _getModelDescription(String modelName) {
+    switch (modelName) {
+      case 'Claude 3 Haiku':
+        return 'Fast and efficient model for quick responses';
+      case 'Claude 3.5 Sonnet':
+        return 'Advanced model for complex tasks and analysis';
+      case 'Gemini 1.5 Flash':
+        return 'Quick and efficient model for everyday tasks';
+      case 'Gemini 1.5 Pro':
+        return 'Powerful model for professional use';
+      case 'GPT-4o':
+        return 'Most capable model for general tasks';
+      case 'GPT-4o Mini':
+        return 'Lightweight version for faster responses';
+      default:
+        return '';
+    }
+  }
+
+  void _updateModelSelection(int index) {
+    setState(() {
+      _selectedModelIndex = index;
+      _selectedModelLabel = aiModes[index]['label'];
+      _selectedModelImage = aiModes[index]['image'];
+      _selectedModelId = aiModes[index]['value'];
+      _selectedModelDescription = _getModelDescription(_selectedModelLabel);
+      _selectedModelCompany = aiModes[index]['company'];
+      // Reset custom bot state
+      _isCustomBot = false;
+      _selectedCustomBotId = null;
+      _selectedCustomBotName = null;
+    });
+  }
+
+  // Update custom bot selection
+  void _updateCustomBotSelection(Bot bot) {
+    setState(() {
+      _isCustomBot = true;
+      _selectedCustomBotId = bot.id;
+      _selectedCustomBotName = bot.assistantName;
+      _selectedModelLabel = bot.assistantName ?? 'Custom Bot';
+      _selectedModelId = bot.id;
+      _selectedModelImage = '';
+      _selectedModelDescription = 'Custom AI Assistant';
+      _selectedModelCompany = 'Custom';
+    });
+  }
 
   void _showAllModelsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Select AI Model',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 20),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                      const Text(
+                        'Select AI Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Choose the AI model that best suits your needs',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                // Subtitle and description
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Choose the AI model that best suits your needs',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                ...aiModes.map((mode) {
-                  final isSelected = aiModes[_selectedModelIndex] == mode;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF8A70FF)
-                            : Colors.grey.shade200,
-                        width: 2,
+
+                // Default Models Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Default Models',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      color:
-                          isSelected ? const Color(0xFFF5F3FF) : Colors.white,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedModelIndex = aiModes.indexOf(mode);
-                        });
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(8),
-                              child: Image.asset(
-                                mode['image'],
-                                fit: BoxFit.contain,
-                              ),
+                      const SizedBox(height: 12),
+                      ...aiModes.map((mode) {
+                        final isSelected = !_isCustomBot &&
+                            aiModes[_selectedModelIndex] == mode;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF8A70FF)
+                                  : Colors.grey[200]!,
+                              width: 1.5,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            color: isSelected
+                                ? const Color(0xFFF5F3FF)
+                                : Colors.white,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              _updateModelSelection(aiModes.indexOf(mode));
+                              Navigator.pop(context);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    mode['label'],
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.all(6),
+                                    child: Image.asset(
+                                      mode['image'],
+                                      fit: BoxFit.contain,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _getModelDescription(mode['label']),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          mode['label'],
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _getModelDescription(mode['label']),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
+                                  if (isSelected)
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF8A70FF),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
-                            if (isSelected)
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF8A70FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 16,
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+
+                // Custom Bots Section
+                if (_customBots.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Custom Bots',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._customBots.map((bot) {
+                          final isSelected =
+                              _isCustomBot && _selectedCustomBotId == bot.id;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF8A70FF)
+                                    : Colors.grey[200]!,
+                                width: 1.5,
+                              ),
+                              color: isSelected
+                                  ? const Color(0xFFF5F3FF)
+                                  : Colors.white,
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                _updateCustomBotSelection(bot);
+                                Navigator.pop(context);
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      child: const Icon(
+                                        Icons.smart_toy,
+                                        color: Color(0xFF8A70FF),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            bot.assistantName ?? 'Custom Bot',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            bot.description ??
+                                                'Custom AI Assistant',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF8A70FF),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ],
+
+                // Loading indicator for custom bots
+                if (_isLoadingBots)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -166,101 +749,382 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     );
   }
 
-  String _getModelDescription(String modelName) {
-    switch (modelName) {
-      case 'DeepSeek V3':
-        return 'Best for code generation and technical tasks';
-      case 'GPT-4':
-        return 'Most capable model for general tasks';
-      case 'Claude 3':
-        return 'Excellent for analysis and long-form content';
-      case 'Llama 3':
-        return 'Best for code generation and technical tasks';
-      default:
-        return '';
-    }
-  }
-
   void _showPromptsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: samplePrompts.length,
-              itemBuilder: (context, index) {
-                final prompt = samplePrompts[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  title: Text(
-                    prompt.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Text(
-                    prompt.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                        ),
-                        child: PromptBottomSheet(
-                          prompt: prompt.content,
-                          title: prompt.title,
-                          description: prompt.description,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+    // Return early if an overlay is already showing
+    if (_isOverlayShowing) return;
 
-  @override
-  void initState() {
-    super.initState();
-    _messageController.addListener(() {
+    _isOverlayShowing = true;
+    _currentQuery = ''; // Reset query when opening dialog
+    _dialogPrompts = []; // Reset dialog prompts
+
+    // Get the render box of the text field to calculate position
+    final RenderBox inputBox =
+        _messageFocusNode.context!.findRenderObject() as RenderBox;
+    final offset = inputBox.localToGlobal(Offset.zero);
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    // Create a scroll controller to detect when we reach the bottom
+    final ScrollController scrollController = ScrollController();
+
+    // Track pagination state
+    int currentOffset = 0;
+    const int pageSize = 10;
+    bool isLoadingMore = false;
+    bool hasMoreData = true;
+
+    // Pre-declare function variables to avoid circular references
+    late void Function() textListener;
+    late void Function() slashListener;
+
+    // Function to close dialog and clear the "/" character
+    void closeDialog() {
+      if (_messageController.text.startsWith('/')) {
+        _messageController.clear();
+      }
+
+      // Only remove if it hasn't been removed already
+      if (_isOverlayShowing) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+
+        // Update tracking variable
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    }
+
+    // Define the listener functions after pre-declaration
+    textListener = () {
+      if (!_messageFocusNode.hasFocus) {
+        if (_messageController.text.startsWith('/')) {
+          _messageController.clear();
+        }
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      }
+    };
+
+    slashListener = () {
       final text = _messageController.text;
-      if (text == '/') {
-        _showPromptsDialog(context);
+      if (text.isEmpty || !text.startsWith('/')) {
+        overlayEntry.remove();
+        scrollController.dispose();
+        _messageFocusNode.removeListener(textListener);
+        _messageController.removeListener(slashListener);
+        _isOverlayShowing = false;
+        _currentOverlayEntry = null;
+      } else {
+        // Extract query from text after '/'
+        final newQuery = text.substring(1).trim();
+        if (newQuery != _currentQuery) {
+          _currentQuery = newQuery;
+          // Reset pagination state
+          currentOffset = 0;
+          hasMoreData = true;
+          // Fetch prompts with new query (empty string for default prompts)
+          _fetchDialogPrompts(_currentQuery);
+        }
+      }
+    };
+
+    // Function to load more prompts
+    Future<void> loadMorePrompts() async {
+      if (isLoadingMore || !hasMoreData) return;
+
+      isLoadingMore = true;
+      try {
+        currentOffset += pageSize;
+        final promptResponse = await PromptService.getPrompts(
+          query: _currentQuery,
+          limit: pageSize,
+          offset: currentOffset,
+          isPublic: true,
+        );
+
+        if (promptResponse.items.isEmpty) {
+          hasMoreData = false;
+        } else {
+          _dialogPrompts.addAll(promptResponse.items);
+        }
+
+        // Force rebuild of overlay
+        overlayEntry.markNeedsBuild();
+      } catch (e) {
+        print('Error loading more prompts: $e');
+      } finally {
+        isLoadingMore = false;
+      }
+    }
+
+    // Add scroll listener
+    scrollController.addListener(() {
+      if (scrollController.position.pixels >=
+              scrollController.position.maxScrollExtent -
+                  100 && // 100px before the end
+          !isLoadingMore &&
+          hasMoreData) {
+        loadMorePrompts();
       }
     });
+
+    // Initial fetch of prompts when dialog opens
+    _fetchDialogPrompts('');
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Invisible full-screen GestureDetector to handle outside taps
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: closeDialog,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          // The actual prompt dialog
+          Positioned(
+            bottom: MediaQuery.of(context).size.height - offset.dy + 20,
+            left: 16,
+            right: 100,
+            child: GestureDetector(
+              onTap: () {},
+              child: Material(
+                elevation: 0,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.grey[200]!,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _isLoadingDialogPrompts
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Expanded(
+                              child: ListView.builder(
+                                controller: scrollController,
+                                shrinkWrap: true,
+                                itemCount: _dialogPrompts.length +
+                                    (hasMoreData ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  // Show loading indicator at the end
+                                  if (index == _dialogPrompts.length) {
+                                    return const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16.0),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final prompt = _dialogPrompts[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 4,
+                                    ),
+                                    title: Text(
+                                      prompt.title,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      // Close the prompts dialog first
+                                      closeDialog();
+
+                                      // Show the prompt bottom sheet
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        builder: (context) => Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: MediaQuery.of(context)
+                                                .viewInsets
+                                                .bottom,
+                                          ),
+                                          child: PromptBottomSheet(
+                                            prompt: prompt.content,
+                                            title: prompt.title,
+                                            description:
+                                                prompt.description ?? '',
+                                            selectedModelIndex:
+                                                _selectedModelIndex,
+                                            remainingTokens: _remainingTokens,
+                                            isInChatScreen: true,
+                                            isCustomBot: _isCustomBot,
+                                            customBotId: _isCustomBot
+                                                ? _selectedCustomBotId
+                                                : null,
+                                            customBotName: _isCustomBot
+                                                ? _selectedCustomBotName
+                                                : null,
+                                            modelId: _isCustomBot
+                                                ? _selectedCustomBotId
+                                                : _selectedModelId,
+                                          ),
+                                        ),
+                                      ).then((result) {
+                                        if (result != null) {
+                                          // Add the prompt result to chat messages
+                                          setState(() {
+                                            _chatMessages.add({
+                                              'sender': 'user',
+                                              'message': result,
+                                            });
+                                            _isWaitingForResponse = true;
+                                          });
+
+                                          // Send the message to the appropriate API
+                                          if (_isCustomBot) {
+                                            AiChatService.chatWithBot(
+                                              messages: [
+                                                {
+                                                  'role': 'user',
+                                                  'content': result,
+                                                  'files': [],
+                                                  'assistant': {
+                                                    'id': _selectedCustomBotId,
+                                                    'model': 'dify',
+                                                    'name':
+                                                        _selectedCustomBotName ??
+                                                            'Custom Bot',
+                                                  },
+                                                }
+                                              ],
+                                              modelId:
+                                                  _selectedCustomBotId ?? '',
+                                              modelName:
+                                                  _selectedCustomBotName ??
+                                                      'Custom Bot',
+                                              conversationId:
+                                                  _conversationId, // Pass conversation ID
+                                            ).then((response) {
+                                              setState(() {
+                                                _chatMessages.add({
+                                                  'sender': 'ai',
+                                                  'message': response.message,
+                                                });
+                                                _remainingTokens =
+                                                    response.remainingUsage;
+                                                _isWaitingForResponse = false;
+                                                _conversationId = response
+                                                    .conversationId; // Update conversation ID
+                                              });
+                                            }).catchError((error) {
+                                              setState(() {
+                                                _isWaitingForResponse = false;
+                                              });
+                                              print(
+                                                  'Error chatting with bot: $error');
+                                            });
+                                          } else {
+                                            AiChatService.sendMessage(
+                                              content: result,
+                                              modelId: _selectedModelId,
+                                              modelName: _selectedModelLabel,
+                                              conversationId:
+                                                  _conversationId, // Pass conversation ID
+                                            ).then((response) {
+                                              setState(() {
+                                                _chatMessages.add({
+                                                  'sender': 'ai',
+                                                  'message': response.message,
+                                                });
+                                                _remainingTokens =
+                                                    response.remainingUsage;
+                                                _isWaitingForResponse = false;
+                                                _conversationId = response
+                                                    .conversationId; // Update conversation ID
+                                              });
+                                            }).catchError((error) {
+                                              setState(() {
+                                                _isWaitingForResponse = false;
+                                              });
+                                              print(
+                                                  'Error sending message: $error');
+                                            });
+                                          }
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Store a reference to the current overlay entry
+    _currentOverlayEntry = overlayEntry;
+
+    overlay.insert(overlayEntry);
+    _messageFocusNode.addListener(textListener);
+    _messageController.addListener(slashListener);
+  }
+
+  // Add this method to fetch custom bots
+  Future<void> _fetchCustomBots() async {
+    setState(() {
+      _isLoadingBots = true;
+    });
+
+    try {
+      final bots = await BotService.getBots();
+      setState(() {
+        _customBots = bots;
+        _isLoadingBots = false;
+      });
+    } catch (e) {
+      print('Error fetching custom bots: $e');
+      setState(() {
+        _isLoadingBots = false;
+      });
+    }
   }
 
   @override
   void dispose() {
+    // If there's an active overlay when disposing, remove it
+    if (_isOverlayShowing && _currentOverlayEntry != null) {
+      _currentOverlayEntry!.remove();
+      _isOverlayShowing = false;
+    }
+
     _messageController.dispose();
     _messageFocusNode.dispose();
     super.dispose();
@@ -281,17 +1145,23 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: Image.asset(
-                'assets/images/gpt.webp',
-                width: 20, // Kích thước ảnh tương đương size của Icon
-                height: 20,
-                fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-              ),
+              child: _isCustomBot
+                  ? const Icon(
+                      Icons.smart_toy,
+                      color: Color(0xFF8A70FF),
+                      size: 24,
+                    )
+                  : Image.asset(
+                      _selectedModelImage,
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.contain,
+                    ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'ChatGPT',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
+            Text(
+              _selectedModelLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
             ),
           ],
         ),
@@ -322,34 +1192,41 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 30, // Kích thước ảnh tương đương size của Icon
-                        height: 30,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
+                      child: _isCustomBot
+                          ? const Icon(
+                              Icons.smart_toy,
+                              color: Color(0xFF8A70FF),
+                              size: 30,
+                            )
+                          : Image.asset(
+                              _selectedModelImage,
+                              width: 30,
+                              height: 30,
+                              fit: BoxFit.contain,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Assistant',
-                          style: TextStyle(
+                        Text(
+                          _selectedModelLabel,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 2),
                         RichText(
-                          text: const TextSpan(
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          text: TextSpan(
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
                             children: [
-                              TextSpan(text: 'By '),
+                              const TextSpan(text: 'By '),
                               TextSpan(
-                                text: '@OpenAI',
-                                style: TextStyle(
+                                text: '@${_selectedModelCompany.toString()}',
+                                style: const TextStyle(
                                   color: Colors.blue,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -362,44 +1239,9 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.black,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ), // Chỉnh padding
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        minimumSize: Size.zero, // Bỏ kích thước tối thiểu
-                        tapTargetSize: MaterialTapTargetSize
-                            .shrinkWrap, // Thu nhỏ button theo content
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize
-                            .min, // Quan trọng: giúp Row chỉ rộng vừa đủ nội dung
-                        children: [
-                          Icon(Icons.info_outline, size: 22),
-                          SizedBox(width: 4),
-                          Text('Bot info', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'General-purpose assistant. Write, code, ask for real-time information, create images, and more.',
-                  style: TextStyle(
+                Text(
+                  _selectedModelDescription,
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
                     height: 1.4,
@@ -409,379 +1251,145 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
+            child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: [
-                // Assistant message
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Hello! How can I help you today?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // User message
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Hi! Can you help me with coding?',
-                        style: TextStyle(fontSize: 14, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Assistant message
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.purple[400]!, Colors.purple[600]!],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Of course! I\'d be happy to help you with coding. What kind of programming help do you need? I can assist with various programming languages, frameworks, and development concepts.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // User message
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'I want to learn Flutter. Where should I start?',
-                        style: TextStyle(fontSize: 14, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Assistant message with learning Flutter
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.purple[400]!, Colors.purple[600]!],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Image.asset(
-                        'assets/images/gpt.webp',
-                        width: 16, // Kích thước ảnh tương đương size của Icon
-                        height: 16,
-                        fit: BoxFit.contain, // Giữ nguyên tỷ lệ ảnh
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(top: 6),
-                                child: const Text(
-                                  'Assistant',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Great choice! Here\'s a structured approach to learn Flutter:\n\n1. Start with Dart basics (variables, functions, classes)\n2. Learn Flutter fundamentals (widgets, state management)\n3. Build simple apps (counter, todo list)\n4. Study UI/UX principles\n5. Explore advanced topics (navigation, databases)\n\nWould you like me to explain any of these topics in detail?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Preview buttons container
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              itemCount: _chatMessages.length + (_isWaitingForResponse ? 1 : 0),
+              itemBuilder: (context, index) {
+                // Show typing indicator at the end if waiting for response
+                if (_isWaitingForResponse && index == _chatMessages.length) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(bottom: 8),
+                        width: 60,
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'How are you feeling today?',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Do you have any questions about Flutter?',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TestScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[100],
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            alignment: Alignment.centerLeft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Code a simple Flutter app.',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 20,
-                                color: Colors.blue[400],
-                              ),
-                            ],
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildTypingDot(0),
+                            _buildTypingDot(1),
+                            _buildTypingDot(2),
+                          ],
                         ),
                       ),
                     ],
+                  );
+                }
+
+                final chat = _chatMessages[index];
+                final isUser = chat['sender'] == 'user';
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: isUser
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isUser) ...[
+                        Container(
+                          width: 32,
+                          height: 32,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: _isCustomBot
+                              ? const Icon(
+                                  Icons.smart_toy,
+                                  color: Color(0xFF8A70FF),
+                                  size: 20,
+                                )
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.asset(
+                                    _selectedModelImage,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                        ),
+                      ],
+                      Flexible(
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isUser
+                                ? const Color(0xFF8A70FF)
+                                : Colors.grey[100],
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(20),
+                              topRight: const Radius.circular(20),
+                              bottomLeft: Radius.circular(isUser ? 20 : 4),
+                              bottomRight: Radius.circular(isUser ? 4 : 20),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!isUser) ...[
+                                Text(
+                                  _selectedModelLabel,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                              ],
+                              Text(
+                                chat['message']!,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: isUser ? Colors.white : Colors.black87,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (isUser) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
 
@@ -814,7 +1422,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.bolt,
                             size: 20,
                             color: const Color.fromARGB(255, 47, 0, 255),
@@ -847,18 +1455,26 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             CircleAvatar(
                               radius: 12,
                               backgroundColor: Colors.grey[100],
-                              child: ClipOval(
-                                child: Image.asset(
-                                  aiModes[_selectedModelIndex]['image'],
-                                  width: 24,
-                                  height: 24,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                              child: _isCustomBot
+                                  ? const Icon(
+                                      Icons.smart_toy,
+                                      color: Color(0xFF8A70FF),
+                                      size: 16,
+                                    )
+                                  : ClipOval(
+                                      child: Image.asset(
+                                        aiModes[_selectedModelIndex]['image'],
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              aiModes[_selectedModelIndex]['label'],
+                              _isCustomBot
+                                  ? _selectedCustomBotName ?? 'Custom Bot'
+                                  : aiModes[_selectedModelIndex]['label'],
                               style: TextStyle(
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,
@@ -876,27 +1492,57 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                     ),
                     const Spacer(),
                     // History icon button
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const HistoryScreen()),
-                          );
-                        },
-                        child: Icon(
-                          Icons.history,
-                          size: 24,
-                          color: Colors.grey[800],
+                    Row(
+                      children: [
+                        // Nút History
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HistoryScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.history,
+                              size: 24,
+                              color: Colors.grey[800],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+
+                        // Nút Làm mới
+                        GestureDetector(
+                          onTap: () async {
+                            // Clear chat history and reset conversation ID to create new thread
+                            setState(() {
+                              _chatMessages.clear();
+                              _conversationId =
+                                  null; // Reset conversation ID to create new thread
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.refresh,
+                              size: 24,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -968,14 +1614,32 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
+                                enabled: _remainingTokens > 0,
                                 decoration: InputDecoration(
-                                  hintText: 'Message',
+                                  hintText: _remainingTokens > 0
+                                      ? 'Message'
+                                      : 'You have no tokens left.',
                                   border: InputBorder.none,
                                   enabledBorder: InputBorder.none,
                                   focusedBorder: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: TextStyle(
+                                    color: _remainingTokens > 0
+                                        ? Colors.grey
+                                        : Colors.red[300],
+                                  ),
                                 ),
                                 onTap: () {
+                                  if (_remainingTokens <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'You have no tokens left. Please upgrade to continue.'),
+                                        backgroundColor: Colors.red[300],
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   if (_showMediaIcons) {
                                     setState(() {
                                       _showMediaIcons = false;
@@ -985,14 +1649,25 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () {
-                                // Handle send message
-                                if (_messageController.text.trim().isNotEmpty) {
-                                  // Add your send message logic here
-                                  _messageController.clear();
-                                }
-                              },
+                              icon: Icon(
+                                Icons.send,
+                                color: _remainingTokens > 0
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              onPressed: _remainingTokens > 0
+                                  ? _sendMessage
+                                  : () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'You have no tokens left. Please upgrade to continue.'),
+                                          backgroundColor: Colors.red[300],
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
                             ),
                           ],
                         ),
@@ -1005,6 +1680,29 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Add this method for typing animation
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600),
+      curve:
+          Interval(index * 0.2, (index * 0.2) + 0.5, curve: Curves.easeInOut),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, -4 * value),
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
     );
   }
 }

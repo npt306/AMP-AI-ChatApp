@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../email_verification_screen.dart';
+import '../../services/auth_service.dart';
+import '../../services/secure_storage_service.dart';
+import '../homepage_screen/homepage_screen.dart';
 
 class SignupTab extends StatefulWidget {
   const SignupTab({super.key});
@@ -12,9 +14,10 @@ class _SignupTabState extends State<SignupTab> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nicknameController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -22,7 +25,7 @@ class _SignupTabState extends State<SignupTab> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _nicknameController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -30,6 +33,62 @@ class _SignupTabState extends State<SignupTab> {
     setState(() {
       _isPasswordVisible = !_isPasswordVisible;
     });
+  }
+
+  void _toggleConfirmPasswordVisibility() {
+    setState(() {
+      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+    });
+  }
+
+  Future<void> _handleSignUp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await AuthService.signUp(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      // Save the authentication data
+      await SecureStorageService.saveAuthData(
+        accessToken: response['access_token'],
+        refreshToken: response['refresh_token'],
+        userId: response['user_id'],
+        email: _emailController.text,
+      );
+
+      if (mounted) {
+        // Clear all previous routes and navigate to homepage
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomepageScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      print("Sign up exception: ${e}");
+      setState(() {
+        String errorMsg = e.toString().replaceAll('Exception: ', '');
+        if (errorMsg.toLowerCase().contains('email already exists') ||
+            errorMsg.toLowerCase().contains('email already registered') ||
+            errorMsg.toLowerCase().contains('conflict')) {
+          _errorMessage = 'This email is already registered';
+        } else {
+          _errorMessage = 'Please enter a valid email address';
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -52,7 +111,6 @@ class _SignupTabState extends State<SignupTab> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _emailController,
-              obscureText: true,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 hintText: 'Email address',
@@ -93,8 +151,11 @@ class _SignupTabState extends State<SignupTab> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your email';
                 }
-                if (!value.contains('@')) {
-                  return 'Please enter a valid email';
+                // Email regex pattern
+                final emailRegex =
+                    RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                if (!emailRegex.hasMatch(value)) {
+                  return 'Please enter a valid email address';
                 }
                 return null;
               },
@@ -112,7 +173,7 @@ class _SignupTabState extends State<SignupTab> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _passwordController,
-              obscureText: true,
+              obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
                 hintText: 'Password',
                 filled: true,
@@ -147,22 +208,43 @@ class _SignupTabState extends State<SignupTab> {
                   horizontal: 16,
                   vertical: 12,
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: _togglePasswordVisibility,
+                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your password';
                 }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
+                if (value.length < 8) {
+                  return 'Password must be at least 8 characters';
                 }
+                // // Check for at least one uppercase letter
+                // if (!value.contains(RegExp(r'[A-Z]'))) {
+                //   return 'Password must contain at least one uppercase letter';
+                // }
+                // // Check for at least one number
+                // if (!value.contains(RegExp(r'[0-9]'))) {
+                //   return 'Password must contain at least one number';
+                // }
+                // // Check for at least one special character
+                // if (!value.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+                //   return 'Password must contain at least one special character';
+                // }
                 return null;
               },
             ),
             const SizedBox(height: 24),
 
-            // Nickname field
+            // Confirm Password field
             const Text(
-              'Nickname',
+              'Confirm Password',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -170,9 +252,10 @@ class _SignupTabState extends State<SignupTab> {
             ),
             const SizedBox(height: 8),
             TextFormField(
-              controller: _nicknameController,
+              controller: _confirmPasswordController,
+              obscureText: !_isConfirmPasswordVisible,
               decoration: InputDecoration(
-                hintText: 'What should we call you',
+                hintText: 'Confirm your password',
                 filled: true,
                 fillColor: const Color(0xFFF6F7F9),
                 border: OutlineInputBorder(
@@ -205,10 +288,22 @@ class _SignupTabState extends State<SignupTab> {
                   horizontal: 16,
                   vertical: 12,
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isConfirmPasswordVisible
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: _toggleConfirmPasswordVisibility,
+                ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter a nickname';
+                  return 'Please confirm your password';
+                }
+                if (value != _passwordController.text) {
+                  return 'Passwords do not match';
                 }
                 return null;
               },
@@ -218,9 +313,25 @@ class _SignupTabState extends State<SignupTab> {
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -228,24 +339,7 @@ class _SignupTabState extends State<SignupTab> {
 
             // Sign up button
             ElevatedButton(
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                      if (_formKey.currentState!.validate()) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EmailVerificationScreen(
-                              email: _emailController.text,
-                              onVerificationComplete:
-                                  (String verificationCode) {
-                                // Handle verification completion
-                              },
-                            ),
-                          ),
-                        );
-                      }
-                    },
+              onPressed: _isLoading ? null : _handleSignUp,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8A70FF),
                 padding: const EdgeInsets.symmetric(vertical: 16),

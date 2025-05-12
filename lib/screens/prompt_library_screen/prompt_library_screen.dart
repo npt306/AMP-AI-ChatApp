@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
-import 'prompt.dart';
+import '../../models/prompt.dart';
 import 'prompt_card.dart';
 import 'create_prompt_dialog.dart';
 import 'delete_prompt_dialog.dart';
+import '../../services/prompt_service.dart';
+import '../homepage_screen/prompt_bottom_sheet.dart';
 
 class PromptLibraryScreen extends StatefulWidget {
-  const PromptLibraryScreen({super.key});
+  const PromptLibraryScreen({
+    super.key,
+    required this.selectedModelIndex,
+    required this.remainingTokens,
+  });
+
+  final int selectedModelIndex;
+  final int remainingTokens;
 
   @override
   State<PromptLibraryScreen> createState() => _PromptLibraryScreenState();
@@ -14,14 +23,19 @@ class PromptLibraryScreen extends StatefulWidget {
 class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isPublicTab = true;
-  String _selectedCategory = 'All';
-  List<Prompt> _filteredPrompts = [];
+  Category? _selectedCategory;
+  List<Prompt> _prompts = [];
   bool _isExpanded = false;
+  bool _isLoading = false;
+  bool _hasNext = false;
+  int _offset = 0;
+  final int _limit = 20;
+  bool _isFavoriteSelected = false;
 
   @override
   void initState() {
     super.initState();
-    _filterPrompts();
+    _loadPrompts();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -32,48 +46,136 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    _filterPrompts();
-  }
+  // Cập nhật phương thức _loadPrompts
+  Future<void> _loadPrompts({bool loadMore = false}) async {
+    if (!loadMore) {
+      setState(() {
+        _isLoading = true;
+        _offset = 0;
+      });
+    }
 
-  void _filterPrompts() {
-    setState(() {
-      _filteredPrompts = samplePrompts.where((prompt) {
-        // Filter by public/private
-        if (_isPublicTab && !prompt.isPublic) return false;
-        if (!_isPublicTab && prompt.isPublic) return false;
+    try {
+      final response = await PromptService.getPrompts(
+        query: _searchController.text.isEmpty ? null : _searchController.text,
+        offset: _offset,
+        limit: _limit,
+        isPublic: _isPublicTab,
+        category: _selectedCategory,
+        isFavorite: _isPublicTab ? (_isFavoriteSelected ? true : null) : null,
+      );
 
-        // Filter by category
-        if (_selectedCategory != 'All' &&
-            !prompt.categories.contains(_selectedCategory)) {
-          return false;
+      setState(() {
+        if (loadMore) {
+          _prompts.addAll(response.items);
+        } else {
+          _prompts = response.items;
         }
-
-        // Filter by search text
-        if (_searchController.text.isNotEmpty) {
-          final searchLower = _searchController.text.toLowerCase();
-          return prompt.title.toLowerCase().contains(searchLower) ||
-              prompt.description.toLowerCase().contains(searchLower);
-        }
-
-        return true;
-      }).toList();
-    });
-  }
-
-  void _toggleFavorite(String promptId) {
-    setState(() {
-      final promptIndex = samplePrompts.indexWhere((p) => p.id == promptId);
-      if (promptIndex != -1) {
-        samplePrompts[promptIndex].isFavorite =
-            !samplePrompts[promptIndex].isFavorite;
+        _hasNext = response.hasNext;
+        _offset += response.items.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading prompts: $e')),
+        );
       }
-    });
+    }
+  }
+
+  void _onSearchChanged() {
+    _loadPrompts();
+  }
+
+  // Cập nhật phương thức toggleFavorite
+
+  void _toggleFavorite(String promptId) async {
+    try {
+      // Tìm prompt trong danh sách
+      final promptIndex = _prompts.indexWhere((p) => p.id == promptId);
+      if (promptIndex == -1) return;
+
+      // Lấy trạng thái hiện tại và đảo ngược nó
+      final currentPrompt = _prompts[promptIndex];
+      final newIsFavorite = !currentPrompt.isFavorite;
+
+      // Cập nhật UI trước để phản hồi ngay lập tức
+      setState(() {
+        _prompts[promptIndex] = Prompt(
+          id: currentPrompt.id,
+          createdAt: currentPrompt.createdAt,
+          updatedAt: currentPrompt.updatedAt,
+          category: currentPrompt.category,
+          content: currentPrompt.content,
+          description: currentPrompt.description,
+          isPublic: currentPrompt.isPublic,
+          language: currentPrompt.language,
+          title: currentPrompt.title,
+          userId: currentPrompt.userId,
+          userName: currentPrompt.userName,
+          isFavorite: newIsFavorite,
+        );
+      });
+
+      // Gọi API thích hợp dựa trên trạng thái mới
+      if (newIsFavorite) {
+        await PromptService.addToFavorite(promptId);
+      } else {
+        await PromptService.removeFromFavorite(promptId);
+      }
+
+      // Hiển thị thông báo thành công
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(newIsFavorite
+                ? 'Added to favorites'
+                : 'Removed from favorites'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Nếu API thất bại, khôi phục trạng thái
+      setState(() {
+        final promptIndex = _prompts.indexWhere((p) => p.id == promptId);
+        if (promptIndex != -1) {
+          final currentPrompt = _prompts[promptIndex];
+          _prompts[promptIndex] = Prompt(
+            id: currentPrompt.id,
+            createdAt: currentPrompt.createdAt,
+            updatedAt: currentPrompt.updatedAt,
+            category: currentPrompt.category,
+            content: currentPrompt.content,
+            description: currentPrompt.description,
+            isPublic: currentPrompt.isPublic,
+            language: currentPrompt.language,
+            title: currentPrompt.title,
+            userId: currentPrompt.userId,
+            userName: currentPrompt.userName,
+            isFavorite: !currentPrompt.isFavorite, // Đảo ngược lại
+          );
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update favorite status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = getAllCategories();
+    final categories = Category.values;
 
     return Scaffold(
       appBar: AppBar(
@@ -106,10 +208,14 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                   context: context,
                   builder: (context) => CreatePromptDialog(
                     onSave: (name, promptText) {
-                      // Here you would typically add the new prompt to your list
-
-                      // Refresh the list
-                      _filterPrompts();
+                      _loadPrompts();
+                      // Hiển thị thông báo thành công
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Prompt created successfully!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
                     },
                   ),
                 )
@@ -136,7 +242,8 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                         _isPublicTab,
                         () => setState(() {
                           _isPublicTab = true;
-                          _filterPrompts();
+                          _prompts = []; // Clear prompts before loading
+                          _loadPrompts();
                         }),
                       ),
                     ),
@@ -147,7 +254,8 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                         !_isPublicTab,
                         () => setState(() {
                           _isPublicTab = false;
-                          _filterPrompts();
+                          _prompts = []; // Clear prompts before loading
+                          _loadPrompts();
                         }),
                       ),
                     ),
@@ -176,11 +284,13 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                             border: InputBorder.none,
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide.none,
-                              borderRadius: BorderRadius.all(Radius.circular(12)),
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(12)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderSide: BorderSide.none,
-                              borderRadius: BorderRadius.all(Radius.circular(12)),
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(12)),
                             ),
                             contentPadding: EdgeInsets.symmetric(vertical: 15),
                           ),
@@ -192,17 +302,26 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                       height: 50,
                       width: 50,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF2F4F7),
+                        color: _isFavoriteSelected
+                            ? const Color(
+                                0xFFFFF8E1) // Màu nền vàng nhạt khi được chọn
+                            : const Color(0xFFF2F4F7),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.star_border,
-                            color: Color(0xFF8C9AAD)),
+                        icon: Icon(
+                          _isFavoriteSelected ? Icons.star : Icons.star_border,
+                          color: _isFavoriteSelected
+                              ? const Color(
+                                  0xFFFFB300) // Màu vàng đậm cho icon khi được chọn
+                              : const Color(0xFF8C9AAD),
+                          size: 26,
+                        ),
                         onPressed: () {
-                          // Show favorites functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Show favorites')),
-                          );
+                          setState(() {
+                            _isFavoriteSelected = !_isFavoriteSelected;
+                            _loadPrompts();
+                          });
                         },
                       ),
                     ),
@@ -223,39 +342,84 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                             child: Wrap(
                               spacing: 6,
                               runSpacing: 6,
-                              children: categories.map((category) {
-                                final isSelected = _selectedCategory == category;
-                                return GestureDetector(
+                              children: [
+                                // All category chip
+                                GestureDetector(
                                   onTap: () {
                                     setState(() {
-                                      _selectedCategory = category;
-                                      _filterPrompts();
+                                      _selectedCategory = null;
+                                      _loadPrompts();
                                     });
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: isSelected
+                                      color: _selectedCategory == null
                                           ? const Color(0xFF0078D4)
                                           : const Color(0xFFF2F4F7),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Text(
-                                      category,
+                                      'All',
                                       style: TextStyle(
-                                        color: isSelected
+                                        color: _selectedCategory == null
                                             ? Colors.white
                                             : const Color(0xFF4A5568),
-                                        fontWeight: isSelected
+                                        fontWeight: _selectedCategory == null
                                             ? FontWeight.bold
                                             : FontWeight.normal,
                                         fontSize: 13,
                                       ),
                                     ),
                                   ),
-                                );
-                              }).toList(),
+                                ),
+                                // Other category chips
+                                ...categories.map((category) {
+                                  final isSelected =
+                                      _selectedCategory == category;
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedCategory = category;
+                                        _loadPrompts();
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? const Color(0xFF0078D4)
+                                            : const Color(0xFFF2F4F7),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Text(
+                                        category
+                                                .toString()
+                                                .split('.')
+                                                .last[0]
+                                                .toUpperCase() +
+                                            category
+                                                .toString()
+                                                .split('.')
+                                                .last
+                                                .substring(1)
+                                                .toLowerCase(),
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : const Color(0xFF4A5568),
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ],
                             ),
                           ),
                         ),
@@ -291,72 +455,127 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
 
                 // Prompt list
                 Expanded(
-                  child: _filteredPrompts.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No prompts found',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Color(0xFF8C9AAD),
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: _filteredPrompts.length,
-                          separatorBuilder: (context, index) => const Divider(),
-                          itemBuilder: (context, index) {
-                            final prompt = _filteredPrompts[index];
-                            return PromptCard(
-                              prompt: prompt,
-                              isPublicPrompt: _isPublicTab,
-                              onToggleFavorite: () => _toggleFavorite(prompt.id),
-                              onTap: () {},
-                              onEdit: _isPublicTab
-                                  ? null
-                                  : () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) => CreatePromptDialog(
-                                          isUpdateMode: true,
-                                          initialName: prompt.title,
-                                          initialPrompt: prompt.content,
-                                          onSave: (name, promptText) {
-                                            setState(() {
-                                              final promptIndex =
-                                                  samplePrompts.indexWhere(
-                                                      (p) => p.id == prompt.id);
-                                              if (promptIndex != -1) {
-                                                samplePrompts[promptIndex] =
-                                                    Prompt(
-                                                  id: prompt.id,
-                                                  title: name,
-                                                  description: prompt.description,
-                                                  categories: prompt.categories,
-                                                  isPublic: prompt.isPublic,
-                                                  content: promptText,
-                                                  usageCount: prompt.usageCount,
-                                                  isFavorite: prompt.isFavorite,
-                                                );
-                                              }
-                                            });
-                                            _filterPrompts();
+                  child: _isLoading && _prompts.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : _prompts.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No prompts found',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Color(0xFF8C9AAD),
+                                ),
+                              ),
+                            )
+                          : NotificationListener<ScrollNotification>(
+                              onNotification: (ScrollNotification scrollInfo) {
+                                if (!_isLoading &&
+                                    _hasNext &&
+                                    scrollInfo.metrics.pixels ==
+                                        scrollInfo.metrics.maxScrollExtent) {
+                                  _loadPrompts(loadMore: true);
+                                }
+                                return true;
+                              },
+                              child: ListView.separated(
+                                itemCount: _prompts.length + (_hasNext ? 1 : 0),
+                                separatorBuilder: (context, index) =>
+                                    const Divider(),
+                                itemBuilder: (context, index) {
+                                  if (index == _prompts.length) {
+                                    return const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  final prompt = _prompts[index];
+                                  return PromptCard(
+                                    prompt: prompt,
+                                    isPublicPrompt: _isPublicTab,
+                                    onToggleFavorite: () =>
+                                        _toggleFavorite(prompt.id),
+                                    onTap: () {
+                                      // Navigate to homepage and show prompt bottom sheet
+                                      Navigator.pop(
+                                          context); // Go back to homepage
+                                      // Show the PromptBottomSheet after navigation
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          builder: (context) => Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: MediaQuery.of(context)
+                                                  .viewInsets
+                                                  .bottom,
+                                            ),
+                                            child: PromptBottomSheet(
+                                              prompt: prompt.content,
+                                              title: prompt.title,
+                                              description:
+                                                  prompt.description ?? '',
+                                              selectedModelIndex:
+                                                  widget.selectedModelIndex,
+                                              remainingTokens:
+                                                  widget.remainingTokens,
+                                            ),
+                                          ),
+                                        );
+                                      });
+                                    },
+                                    onEdit: _isPublicTab
+                                        ? null
+                                        : () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  CreatePromptDialog(
+                                                isUpdateMode: true,
+                                                initialName: prompt.title,
+                                                initialPrompt: prompt.content,
+                                                initialDescription:
+                                                    prompt.description,
+                                                promptId: prompt.id,
+                                                category: prompt.category,
+                                                isPublic: prompt.isPublic,
+                                                onSave: (name, promptText) {
+                                                  _loadPrompts();
+                                                  // Hiển thị thông báo thành công
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                          'Prompt updated successfully!'),
+                                                      backgroundColor:
+                                                          Colors.green,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            );
                                           },
-                                        ),
-                                      );
-                                    },
-                              onDelete: _isPublicTab
-                                  ? null
-                                  : () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) => DeletePromptDialog(
-                                          onDelete: () {},
-                                        ),
-                                      );
-                                    },
-                            );
-                          },
-                        ),
+                                    onDelete: _isPublicTab
+                                        ? null
+                                        : () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  DeletePromptDialog(
+                                                promptId: prompt.id,
+                                                promptName: prompt.title,
+                                                onDelete: () {
+                                                  _loadPrompts();
+                                                },
+                                              ),
+                                            );
+                                          },
+                                  );
+                                },
+                              ),
+                            ),
                 ),
               ],
             ),

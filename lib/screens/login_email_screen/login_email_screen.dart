@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'login_tab.dart';
 import 'signup_tab.dart';
 
@@ -9,14 +10,15 @@ class LoginEmailScreen extends StatefulWidget {
   State<LoginEmailScreen> createState() => _LoginEmailScreenState();
 }
 
-class _LoginEmailScreenState extends State<LoginEmailScreen> with SingleTickerProviderStateMixin {
+class _LoginEmailScreenState extends State<LoginEmailScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
     // Listen for tab changes to update app bar title
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
@@ -24,7 +26,7 @@ class _LoginEmailScreenState extends State<LoginEmailScreen> with SingleTickerPr
       }
     });
   }
-  
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -56,77 +58,47 @@ class _LoginEmailScreenState extends State<LoginEmailScreen> with SingleTickerPr
       ),
       body: Column(
         children: [
-          // Logo
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 24),
+          Padding(
+            padding: EdgeInsets.all(8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Logo
                 Container(
-                  width: 50,
-                  height: 50,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF8A70FF), Color(0xFF2E9BFF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(50),
                   ),
                   child: Center(
-                    child: Container(
-                      width: 35,
-                      height: 35,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Positioned(
-                            left: 8,
-                            child: Container(
-                              width: 5,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            child: Transform.rotate(
-                              angle: -0.5,
-                              child: Container(
-                                width: 5,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                    child: SvgPicture.asset(
+                      'assets/images/logo.svg',
+                      width: 30,
+                      height: 30,
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 const Text(
-                  'App name',
+                  'Effica Assist',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Color(0xFF8A70FF),
                   ),
                 ),
               ],
             ),
           ),
-          
           // Tab Bar
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -154,7 +126,7 @@ class _LoginEmailScreenState extends State<LoginEmailScreen> with SingleTickerPr
               ],
             ),
           ),
-          
+
           // Tab Content
           Expanded(
             child: TabBarView(
@@ -170,4 +142,3 @@ class _LoginEmailScreenState extends State<LoginEmailScreen> with SingleTickerPr
     );
   }
 }
-

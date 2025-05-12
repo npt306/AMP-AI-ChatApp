@@ -112,7 +112,7 @@ class MenuDrawer extends StatelessWidget {
             _buildMenuItem(
               context,
               index: 4,
-              title: 'Email Composer',
+              title: 'AI Email Assistant',
               leading: Container(
                 width: 50,
                 height: 50,
@@ -164,7 +164,7 @@ class MenuDrawer extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.black87,
                   fontSize: 16,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ],

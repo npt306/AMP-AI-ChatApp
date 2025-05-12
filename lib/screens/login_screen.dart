@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_email_screen/login_email_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -106,89 +107,42 @@ class LoginScreen extends StatelessWidget {
   }
 
   Widget _buildLogo() {
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withOpacity(0.3),
-            blurRadius: 20,
-            spreadRadius: 2,
-          ),
-        ],
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.purple.shade400,
-            Colors.purple.shade300,
-            Colors.blue.shade400,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Container(
-          width: 85,
-          height: 85,
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 100,
+          height: 100,
           decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-            ],
+            gradient: const LinearGradient(
+              colors: [Color(0xFF8A70FF), Color(0xFF2E9BFF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(50),
           ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned(
-                left: 18,
-                top: 28,
-                child: Container(
-                  width: 12,
-                  height: 25,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
+          child: Center(
+            child: SvgPicture.asset(
+              'assets/images/logo.svg',
+              width: 50,
+              height: 50,
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
               ),
-              Positioned(
-                right: 18,
-                top: 28,
-                child: Transform.rotate(
-                  angle: -0.5,
-                  child: Container(
-                    width: 12,
-                    height: 25,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-              ),
-              // Add a mouth
-              Positioned(
-                bottom: 22,
-                child: Container(
-                  width: 25,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 16),
+        const Text(
+          'Effica Assist',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF8A70FF),
+          ),
+        ),
+      ],
     );
   }
 

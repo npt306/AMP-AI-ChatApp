@@ -1,15 +1,85 @@
 import 'package:flutter/material.dart';
+import '../../screens/chat_available_bot_screen.dart';
+
 class PromptBottomSheet extends StatefulWidget {
-  const PromptBottomSheet(
-      {super.key, required this.prompt, required this.title, required this.description});
+  const PromptBottomSheet({
+    super.key,
+    required this.prompt,
+    required this.title,
+    required this.description,
+    required this.selectedModelIndex,
+    required this.remainingTokens,
+    this.isInChatScreen = false,
+    this.isCustomBot = false,
+    this.customBotId,
+    this.customBotName,
+    this.modelId,
+  });
   final String prompt;
   final String title;
   final String description;
+  final int selectedModelIndex;
+  final int remainingTokens;
+  final bool isInChatScreen;
+  final bool isCustomBot;
+  final String? customBotId;
+  final String? customBotName;
+  final String? modelId;
   @override
   State<PromptBottomSheet> createState() => _PromptBottomSheetState();
 }
+
 class _PromptBottomSheetState extends State<PromptBottomSheet> {
   bool _showPrompt = false;
+  final TextEditingController _topicController = TextEditingController();
+  final FocusNode _topicFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _topicFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _topicController.dispose();
+    _topicFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleSend() {
+    final topic = _topicController.text.trim();
+    final message = widget.prompt.replaceAll(RegExp(r'\[.*?\]'), topic);
+    // final message = 'Template prompt: $promptMessage\nTopic: $topic';
+
+    print("Sending message to chat: $message");
+
+    if (widget.isInChatScreen) {
+      Navigator.pop(context, message);
+    } else {
+      Navigator.pop(context);
+
+      Future.delayed(Duration.zero, () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatAvailableBotScreen(
+              initialMessage: message.trim(),
+              selectedModelIndex: widget.selectedModelIndex,
+              remainingTokens: widget.remainingTokens,
+              isCustomBot: widget.isCustomBot,
+              customBotId: widget.customBotId,
+              customBotName: widget.customBotName,
+              modelId: widget.modelId,
+            ),
+          ),
+        );
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -30,7 +100,7 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(0, 16, 8, 8),
               child: Row(
                 children: [
                   IconButton(
@@ -88,7 +158,9 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          _showPrompt ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          _showPrompt
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
                           color: Colors.blue,
                           size: 20,
                         ),
@@ -98,17 +170,27 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                   if (_showPrompt) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      width: double.infinity,
+                      height: 120, // Fixed height - adjust as needed
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
+                        color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.grey[200]!),
                       ),
-                      child: Text(
-                        widget.prompt,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
+                      child: Scrollbar(
+                        thickness: 4,
+                        radius: const Radius.circular(8),
+                        thumbVisibility: true, // Always show scrollbar
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(12),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Text(
+                            widget.prompt,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -125,8 +207,10 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                   border: Border.all(color: Colors.black12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const TextField(
-                  decoration: InputDecoration(
+                child: TextField(
+                  controller: _topicController,
+                  focusNode: _topicFocusNode,
+                  decoration: const InputDecoration(
                     focusedBorder: OutlineInputBorder(
                       borderSide: BorderSide.none,
                       borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -138,9 +222,9 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                     hintText: 'Topic',
                     hintStyle: TextStyle(
                       color: Colors.black38,
-                      fontSize: 16,
+                      fontSize: 14,
                     ),
-                    contentPadding: EdgeInsets.all(16),
+                    contentPadding: EdgeInsets.all(8),
                     border: InputBorder.none,
                   ),
                   maxLines: 3,
@@ -163,7 +247,7 @@ class _PromptBottomSheetState extends State<PromptBottomSheet> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _handleSend,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
