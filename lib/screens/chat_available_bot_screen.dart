@@ -44,7 +44,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   int _selectedModelIndex = 0;
-  int _remainingTokens = 0;
+  int _remainingTokens = 1;
   List<Map<String, dynamic>> _chatMessages = [];
   String _selectedModelLabel = '';
   String _selectedModelId = '';
@@ -1614,14 +1614,32 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
+                                enabled: _remainingTokens > 0,
                                 decoration: InputDecoration(
-                                  hintText: 'Message',
+                                  hintText: _remainingTokens > 0
+                                      ? 'Message'
+                                      : 'You have no tokens left.',
                                   border: InputBorder.none,
                                   enabledBorder: InputBorder.none,
                                   focusedBorder: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: TextStyle(
+                                    color: _remainingTokens > 0
+                                        ? Colors.grey
+                                        : Colors.red[300],
+                                  ),
                                 ),
                                 onTap: () {
+                                  if (_remainingTokens <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'You have no tokens left. Please upgrade to continue.'),
+                                        backgroundColor: Colors.red[300],
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   if (_showMediaIcons) {
                                     setState(() {
                                       _showMediaIcons = false;
@@ -1631,8 +1649,25 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: _sendMessage,
+                              icon: Icon(
+                                Icons.send,
+                                color: _remainingTokens > 0
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              onPressed: _remainingTokens > 0
+                                  ? _sendMessage
+                                  : () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'You have no tokens left. Please upgrade to continue.'),
+                                          backgroundColor: Colors.red[300],
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
                             ),
                           ],
                         ),
