@@ -15,7 +15,6 @@ import '../../services/token_service.dart';
 import '../../services/subscription_service.dart';
 import '../../services/bot_service.dart';
 import '../../models/bot.dart';
-import '../../services/ai_chat_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -30,7 +29,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
   bool _showMediaIcons = false;
   int _selectedModelIndex = 0;
   bool _isCustomBot = false;
-  int _remainingTokens = 0;
+  int _remainingTokens = 1;
   bool _isPro = false;
   String _subscriptionType = 'Basic';
   final TextEditingController _messageController = TextEditingController();
@@ -1302,14 +1301,32 @@ class _HomepageScreenState extends State<HomepageScreen> {
                               child: TextField(
                                 controller: _messageController,
                                 focusNode: _messageFocusNode,
+                                enabled: _remainingTokens > 0,
                                 decoration: InputDecoration(
-                                  hintText: 'Message',
+                                  hintText: _remainingTokens > 0
+                                      ? 'Message'
+                                      : 'You have no tokens left.',
                                   border: InputBorder.none,
                                   enabledBorder: InputBorder.none,
                                   focusedBorder: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: TextStyle(
+                                    color: _remainingTokens > 0
+                                        ? Colors.grey
+                                        : Colors.red[300],
+                                  ),
                                 ),
                                 onTap: () {
+                                  if (_remainingTokens <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'You have no tokens left. Please upgrade to continue.'),
+                                        backgroundColor: Colors.red[300],
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   if (_showMediaIcons) {
                                     setState(() {
                                       _showMediaIcons = false;
@@ -1319,9 +1336,26 @@ class _HomepageScreenState extends State<HomepageScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.send, color: Colors.grey[600]),
-                              onPressed: () => _navigateToChatScreen(
-                                  _messageController.text),
+                              icon: Icon(
+                                Icons.send,
+                                color: _remainingTokens > 0
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              onPressed: _remainingTokens > 0
+                                  ? () => _navigateToChatScreen(
+                                      _messageController.text)
+                                  : () {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'You have no tokens left. Please upgrade to continue.'),
+                                          backgroundColor: Colors.red[300],
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
                             ),
                           ],
                         ),
