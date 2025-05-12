@@ -62,6 +62,9 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
   List<prompt.Prompt> _dialogPrompts = [];
   bool _isLoadingDialogPrompts = false;
 
+  // Add conversationId field
+  String? _conversationId;
+
   final List<Map<String, dynamic>> aiModes = const [
     {
       'image': 'assets/images/claude.png',
@@ -173,6 +176,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
               'message': response.message,
             });
             _remainingTokens = response.remainingUsage;
+            _conversationId = response.conversationId; // Store conversation ID
           });
         }).catchError((error) {
           print('Error chatting with bot: $error');
@@ -189,6 +193,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
               'message': response.message,
             });
             _remainingTokens = response.remainingUsage;
+            _conversationId = response.conversationId; // Store conversation ID
           });
         }).catchError((error) {
           print('Error sending message: $error');
@@ -287,14 +292,43 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
         'message': message,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      _isWaitingForResponse = true;
     });
 
     try {
-      final response = await AiChatService.sendMessage(
-        content: message,
-        modelId: widget.modelId ?? 'gpt-4o-mini',
-        modelName: 'AI Assistant',
-      );
+      // Format all messages for the API call
+      final formattedMessages = _chatMessages.map((msg) {
+        return {
+          'role': msg['sender'] == 'user' ? 'user' : 'assistant',
+          'content': msg['message'],
+          'files': [],
+          'assistant': _isCustomBot
+              ? {
+                  'id': _selectedCustomBotId,
+                  'model': 'dify',
+                  'name': _selectedCustomBotName ?? 'Custom Bot',
+                }
+              : {
+                  'id': _selectedModelId,
+                  'model': 'dify',
+                  'name': _selectedModelLabel,
+                },
+        };
+      }).toList();
+
+      final response = _isCustomBot
+          ? await AiChatService.chatWithBot(
+              messages: formattedMessages,
+              modelId: _selectedCustomBotId ?? '',
+              modelName: _selectedCustomBotName ?? 'Custom Bot',
+              conversationId: _conversationId, // Pass conversation ID
+            )
+          : await AiChatService.sendMessage(
+              content: message,
+              modelId: _selectedModelId,
+              modelName: _selectedModelLabel,
+              conversationId: _conversationId, // Pass conversation ID
+            );
 
       setState(() {
         _chatMessages.add({
@@ -302,6 +336,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           'message': response.message,
           'timestamp': DateTime.now().toIso8601String(),
         });
+        _isWaitingForResponse = false;
+        _conversationId = response.conversationId; // Update conversation ID
       });
 
       // Update tokens after successful message
@@ -318,6 +354,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           'message': 'Sorry, I encountered an error. Please try again.',
           'timestamp': DateTime.now().toIso8601String(),
         });
+        _isWaitingForResponse = false;
       });
     }
   }
@@ -335,18 +372,22 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
       });
 
       final formattedMessages = _chatMessages.map((msg) {
-        return formatMessage(
-          sender: msg['sender'],
-          message: msg['message'],
-          modelId: _selectedModelId,
-          modelName: _selectedModelLabel,
-        );
+        return {
+          'role': msg['sender'] == 'user' ? 'user' : 'assistant',
+          'content': msg['message'],
+          'files': [],
+          'assistant': {
+            'id': _selectedCustomBotId,
+            'model': 'dify',
+            'name': _selectedCustomBotName ?? 'Custom Bot',
+          },
+        };
       }).toList();
 
       AiChatService.chatWithBot(
         messages: formattedMessages,
-        modelId: _selectedModelId,
-        modelName: _selectedModelLabel,
+        modelId: _selectedCustomBotId ?? '',
+        modelName: _selectedCustomBotName ?? 'Custom Bot',
       ).then((response) {
         setState(() {
           _chatMessages.add({

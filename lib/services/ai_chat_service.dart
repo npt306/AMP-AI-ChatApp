@@ -11,6 +11,7 @@ class AiChatService {
     required List<Map<String, dynamic>> messages,
     required String modelId,
     required String modelName,
+    String? conversationId,
   }) async {
     const endpoint = '/api/v1/ai-chat/messages';
 
@@ -19,6 +20,7 @@ class AiChatService {
       'files': [],
       'metadata': {
         'conversation': {
+          'id': conversationId,
           'messages': messages
               .map((msg) => {
                     'role': msg['role'],
@@ -65,8 +67,9 @@ class AiChatService {
 
   static Future<MessageResponse> sendMessage({
     required String content,
-    required String modelId, // ex: 'value': 'claude-3-haiku-20240307',
-    required String modelName, // ex: 'label': 'Claude 3 Haiku',
+    required String modelId,
+    required String modelName,
+    String? conversationId,
   }) async {
     const endpoint = '/api/v1/ai-chat/messages';
     final headers = {
@@ -77,7 +80,7 @@ class AiChatService {
       'content': content,
       "files": [],
       "metadata": {
-        "conversation": {"messages": []}
+        "conversation": {"id": conversationId, "messages": []}
       },
       "assistant": {"id": modelId, "model": "dify", "name": modelName}
     });
@@ -152,15 +155,16 @@ class AiChatService {
       'assistantModel': 'dify',
     };
 
-
     try {
       final response = await _apiClient.get(
         '${ApiConfig.jarvisBaseUrl}$endpoint',
         queryParameters: queryParams,
       );
 
-      print("getConversationHistory Response status: ${response.statusCode}"); // Debug log
-      print("getConversationHistory Response body: ${response.body}"); // Debug log
+      print(
+          "getConversationHistory Response status: ${response.statusCode}"); // Debug log
+      print(
+          "getConversationHistory Response body: ${response.body}"); // Debug log
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
