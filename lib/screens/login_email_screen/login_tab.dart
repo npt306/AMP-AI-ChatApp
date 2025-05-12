@@ -35,8 +35,7 @@ class _LoginTabState extends State<LoginTab> {
   }
 
   void _handleNextStep() {
-    if (_emailController.text.isNotEmpty &&
-        _emailController.text.contains('@')) {
+    if (_formKey.currentState!.validate()) {
       setState(() {
         _showPasswordField = true;
       });
@@ -44,7 +43,12 @@ class _LoginTabState extends State<LoginTab> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _errorMessage = 'Please fix the errors in the form';
+      });
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -75,7 +79,8 @@ class _LoginTabState extends State<LoginTab> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        print('Login exception: ${e}');
+        _errorMessage = 'Incorrect email or password';
       });
     } finally {
       if (mounted) {
@@ -150,8 +155,11 @@ class _LoginTabState extends State<LoginTab> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
                   }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                  // Email regex pattern
+                  final emailRegex = RegExp(
+                      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                  if (!emailRegex.hasMatch(value)) {
+                    return 'Please enter a valid email address';
                   }
                   return null;
                 },
@@ -282,9 +290,17 @@ class _LoginTabState extends State<LoginTab> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your password';
                   }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
+                  if (value.length < 8) {
+                    return 'Password must be at least 8 characters';
                   }
+                  // Check for at least one uppercase letter
+                  // if (!value.contains(RegExp(r'[A-Z]'))) {
+                  //   return 'Password must contain at least one uppercase letter';
+                  // }
+                  // // Check for at least one number
+                  // if (!value.contains(RegExp(r'[0-9]'))) {
+                  //   return 'Password must contain at least one number';
+                  // }
                   return null;
                 },
               ),
@@ -293,9 +309,25 @@ class _LoginTabState extends State<LoginTab> {
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
