@@ -6,4 +6,4 @@ https://drive.google.com/file/d/1KyaEl9wgtJrQLNYpYJwD0F_PuZbTZ7am/view
 
 Milestone 1: https://www.youtube.com/watch?v=vvdwjvoNku4<br>
 Milestone 2: https://www.youtube.com/watch?v=nur6tJYC1lE<br>
-Milestone 3:
+Milestone 3: https://www.youtube.com/watch?v=j0_oT2M-G2o
