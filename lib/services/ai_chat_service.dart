@@ -109,7 +109,6 @@ class AiChatService {
 
   static Future<ConversationResponse> getConversations({
     String? cursor,
-    int limit = 20,
     String? assistantId,
   }) async {
     final endpoint = '/api/v1/ai-chat/conversations';

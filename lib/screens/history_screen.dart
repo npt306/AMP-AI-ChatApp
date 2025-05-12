@@ -156,6 +156,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             conversationHistory: formattedHistory,
             modelId:
                 history.items.isNotEmpty ? history.items.first.modelId : null,
+            conversationId: item.id,
           ),
         ),
       );

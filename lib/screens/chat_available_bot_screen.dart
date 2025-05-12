@@ -19,6 +19,7 @@ class ChatAvailableBotScreen extends StatefulWidget {
   final String? customBotName;
   final String? modelId;
   final List<Map<String, dynamic>>? conversationHistory;
+  final String? conversationId;
 
   const ChatAvailableBotScreen({
     Key? key,
@@ -30,6 +31,7 @@ class ChatAvailableBotScreen extends StatefulWidget {
     this.customBotName,
     this.modelId,
     this.conversationHistory,
+    this.conversationId,
   }) : super(key: key);
 
   @override
@@ -119,6 +121,9 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     _selectedCustomBotId = widget.customBotId;
     _selectedCustomBotName = widget.customBotName;
 
+    // Set conversation ID if provided
+    _conversationId = widget.conversationId;
+
     // Initialize chat messages with conversation history if available
     if (widget.conversationHistory != null) {
       _chatMessages = List.from(widget.conversationHistory!);
@@ -169,6 +174,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           ],
           modelId: widget.customBotId ?? '',
           modelName: widget.customBotName ?? 'Custom Bot',
+          conversationId: _conversationId, // Pass conversation ID if available
         ).then((response) {
           setState(() {
             _chatMessages.add({
@@ -186,6 +192,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
           content: widget.initialMessage,
           modelId: _selectedModelId,
           modelName: _selectedModelLabel,
+          conversationId: _conversationId, // Pass conversation ID if available
         ).then((response) {
           setState(() {
             _chatMessages.add({
@@ -388,6 +395,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
         messages: formattedMessages,
         modelId: _selectedCustomBotId ?? '',
         modelName: _selectedCustomBotName ?? 'Custom Bot',
+        conversationId: _conversationId, // Pass conversation ID
       ).then((response) {
         setState(() {
           _chatMessages.add({
@@ -1016,6 +1024,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                               modelName:
                                                   _selectedCustomBotName ??
                                                       'Custom Bot',
+                                              conversationId:
+                                                  _conversationId, // Pass conversation ID
                                             ).then((response) {
                                               setState(() {
                                                 _chatMessages.add({
@@ -1025,6 +1035,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                                 _remainingTokens =
                                                     response.remainingUsage;
                                                 _isWaitingForResponse = false;
+                                                _conversationId = response
+                                                    .conversationId; // Update conversation ID
                                               });
                                             }).catchError((error) {
                                               setState(() {
@@ -1038,6 +1050,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                               content: result,
                                               modelId: _selectedModelId,
                                               modelName: _selectedModelLabel,
+                                              conversationId:
+                                                  _conversationId, // Pass conversation ID
                                             ).then((response) {
                                               setState(() {
                                                 _chatMessages.add({
@@ -1047,6 +1061,8 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                                                 _remainingTokens =
                                                     response.remainingUsage;
                                                 _isWaitingForResponse = false;
+                                                _conversationId = response
+                                                    .conversationId; // Update conversation ID
                                               });
                                             }).catchError((error) {
                                               setState(() {
@@ -1505,9 +1521,11 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                         // Nút Làm mới
                         GestureDetector(
                           onTap: () async {
-                            // Clear chat history
+                            // Clear chat history and reset conversation ID to create new thread
                             setState(() {
                               _chatMessages.clear();
+                              _conversationId =
+                                  null; // Reset conversation ID to create new thread
                             });
                           },
                           child: Container(

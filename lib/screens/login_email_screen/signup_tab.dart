@@ -71,12 +71,14 @@ class _SignupTabState extends State<SignupTab> {
         );
       }
     } catch (e) {
+      print("Sign up exception: ${e}");
       setState(() {
         String errorMsg = e.toString().replaceAll('Exception: ', '');
         if (errorMsg.toLowerCase().contains('email already exists') ||
-            errorMsg.toLowerCase().contains('email already registered')) {
+            errorMsg.toLowerCase().contains('email already registered') ||
+            errorMsg.toLowerCase().contains('conflict')) {
           _errorMessage = 'This email is already registered';
-        } else{
+        } else {
           _errorMessage = 'Please enter a valid email address';
         }
       });
