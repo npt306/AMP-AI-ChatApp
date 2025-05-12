@@ -16,7 +16,7 @@ class TokenManager {
   Future<void> updateTokens() async {
     try {
       final tokenUsage = await TokenService.getTokenUsage();
-      _remainingTokens = tokenUsage.remainingTokens;
+      _remainingTokens = tokenUsage.availableTokens;
     } catch (e) {
       print('Error updating tokens: $e');
       // Keep the current token value if update fails
@@ -40,7 +40,7 @@ class TokenService {
         '${ApiConfig.jarvisBaseUrl}$endpoint',
       );
 
-      print(response);
+      print('aaaaaaaaaaaaa ${response}');
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);

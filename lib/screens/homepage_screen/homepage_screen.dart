@@ -155,7 +155,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
     try {
       final usage = await TokenService.getTokenUsage();
       setState(() {
-        _remainingTokens = usage.remainingTokens;
+        _remainingTokens = usage.availableTokens;
       });
     } catch (e) {
       print('Error fetching token usage: $e');

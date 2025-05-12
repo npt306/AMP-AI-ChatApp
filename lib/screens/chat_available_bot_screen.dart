@@ -106,7 +106,12 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
     super.initState();
     print('ChatAvailableBotScreen initState called');
     _selectedModelIndex = widget.selectedModelIndex;
-    _remainingTokens = TokenManager.instance.remainingTokens;
+    // Update tokens from TokenManager
+    TokenManager.instance.updateTokens().then((_) {
+      setState(() {
+        _remainingTokens = TokenManager.instance.remainingTokens;
+      });
+    });
     _isCustomBot = widget.isCustomBot;
     _selectedCustomBotId = widget.customBotId;
     _selectedCustomBotName = widget.customBotName;
@@ -301,6 +306,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
 
       // Update tokens after successful message
       TokenManager.instance.updateTokensAfterMessage(response.remainingUsage);
+      await TokenManager.instance.updateTokens(); // Refresh from server
       setState(() {
         _remainingTokens = TokenManager.instance.remainingTokens;
       });
@@ -388,12 +394,24 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
       _selectedModelId = aiModes[index]['value'];
       _selectedModelDescription = _getModelDescription(_selectedModelLabel);
       _selectedModelCompany = aiModes[index]['company'];
-      // Clear chat history
-      _chatMessages.clear();
       // Reset custom bot state
       _isCustomBot = false;
       _selectedCustomBotId = null;
       _selectedCustomBotName = null;
+    });
+  }
+
+  // Update custom bot selection
+  void _updateCustomBotSelection(Bot bot) {
+    setState(() {
+      _isCustomBot = true;
+      _selectedCustomBotId = bot.id;
+      _selectedCustomBotName = bot.assistantName;
+      _selectedModelLabel = bot.assistantName ?? 'Custom Bot';
+      _selectedModelId = bot.id;
+      _selectedModelImage = '';
+      _selectedModelDescription = 'Custom AI Assistant';
+      _selectedModelCompany = 'Custom';
     });
   }
 
@@ -595,20 +613,7 @@ class _ChatAvailableBotScreenState extends State<ChatAvailableBotScreen> {
                             ),
                             child: InkWell(
                               onTap: () {
-                                setState(() {
-                                  _isCustomBot = true;
-                                  _selectedCustomBotId = bot.id;
-                                  _selectedCustomBotName = bot.assistantName;
-                                  _selectedModelLabel =
-                                      bot.assistantName ?? 'Custom Bot';
-                                  _selectedModelId = bot.id;
-                                  _selectedModelImage = '';
-                                  _selectedModelDescription =
-                                      'Custom AI Assistant';
-                                  _selectedModelCompany = 'Custom';
-                                  // Clear chat history when switching to custom bot
-                                  _chatMessages.clear();
-                                });
+                                _updateCustomBotSelection(bot);
                                 Navigator.pop(context);
                               },
                               borderRadius: BorderRadius.circular(12),

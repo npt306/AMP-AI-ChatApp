@@ -152,13 +152,15 @@ class AiChatService {
       'assistantModel': 'dify',
     };
 
+
     try {
       final response = await _apiClient.get(
         '${ApiConfig.jarvisBaseUrl}$endpoint',
         queryParameters: queryParams,
       );
 
-      
+      print("getConversationHistory Response status: ${response.statusCode}"); // Debug log
+      print("getConversationHistory Response body: ${response.body}"); // Debug log
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
