@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/ai_chat_service.dart';
 import '../models/conversation_response.dart';
 import 'chat_available_bot_screen.dart';
+import '../services/token_manager.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -117,26 +118,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
       // Process and format conversation history
       final formattedHistory = <Map<String, dynamic>>[];
-      String? lastQuery;
 
       // Process conversation history
       for (var historyItem in history.items) {
-        // Handle query (user message)
-        if (historyItem.query != null && historyItem.query!.trim().isNotEmpty) {
-          String query = historyItem.query!;
-
-          // Skip if this query is the same as the last one or matches the title
-          if (query == lastQuery || query == item.title) continue;
-          lastQuery = query;
-
+        // Handle user message (could be in query or content)
+        String? userMessage = historyItem.query ?? historyItem.content;
+        if (userMessage != null && userMessage.trim().isNotEmpty) {
           formattedHistory.add({
             'sender': 'user',
-            'message': query,
+            'message': userMessage,
             'timestamp': historyItem.createdAt,
           });
         }
 
-        // Handle answer (AI response)
+        // Handle AI response
         if (historyItem.answer != null &&
             historyItem.answer!.trim().isNotEmpty) {
           formattedHistory.add({
@@ -157,7 +152,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           builder: (context) => ChatAvailableBotScreen(
             initialMessage: '',
             selectedModelIndex: 0,
-            remainingTokens: 100,
+            remainingTokens: TokenManager.instance.remainingTokens,
             conversationHistory: formattedHistory,
             modelId:
                 history.items.isNotEmpty ? history.items.first.modelId : null,
